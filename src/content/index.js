@@ -11,6 +11,10 @@ import hookWorkshop from './chapters/10-hook-workshop.js';
 import performancePeaks from './chapters/11-performance-peaks.js';
 import arcaneSpire from './chapters/12-arcane-spire.js';
 import mutatorCitadel from './chapters/13-mutator-citadel.js';
+import patternPavilion from './chapters/14-pattern-pavilion.js';
+import clockworkDeep from './chapters/15-clockwork-deep.js';
+import tradeRoutes from './chapters/16-trade-routes.js';
+import guildhall from './chapters/17-guildhall.js';
 import { code } from './helpers.js';
 
 const ALL = [
@@ -24,8 +28,12 @@ const ALL = [
   refRuins,
   contextCanopy,
   hookWorkshop,
+  patternPavilion,
   performancePeaks,
+  clockworkDeep,
   arcaneSpire,
+  tradeRoutes,
+  guildhall,
   mutatorCitadel,
 ];
 

@@ -142,6 +142,7 @@ export function createSandbox({ level = {}, mode = 'preview', onLog } = {}) {
   const performanceImpl = mode === 'test' ? { now: () => timers.now() } : globalThis.performance;
   const localStorageImpl = mode === 'test' ? createMemoryStorage() : previewStorage;
   return {
+    typescript: Boolean(level.typescript),
     timers,
     fetch,
     console: sandboxConsole,
@@ -198,7 +199,7 @@ const previewStorage = createMemoryStorage();
 export function evaluateSource(source, sandbox) {
   let compiled;
   try {
-    compiled = compileSource(source);
+    compiled = compileSource(source, { typescript: Boolean(sandbox.typescript) });
   } catch (err) {
     return { error: formatSyntaxError(err), exports: null, App: null, compiled: null };
   }

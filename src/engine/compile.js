@@ -5,12 +5,13 @@ import { transform } from 'sucrase';
  * inside the sandbox. We use sucrase because it is tiny, fast and runs in the
  * browser without any extra setup.
  */
-export function compileSource(source) {
+export function compileSource(source, { typescript = false } = {}) {
+  // TypeScript levels: types are stripped (not checked), like a bundler does.
   const { code } = transform(source, {
-    transforms: ['jsx', 'imports'],
+    transforms: typescript ? ['typescript', 'jsx', 'imports'] : ['jsx', 'imports'],
     jsxRuntime: 'automatic',
     production: true,
-    filePath: 'App.jsx',
+    filePath: typescript ? 'App.tsx' : 'App.jsx',
   });
   return addLoopGuards(code);
 }

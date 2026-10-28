@@ -424,7 +424,7 @@ export function Level({ level, go, playground = false }) {
         <section className="panel panel-right">
           <div className="editor-wrap">
             <div className="editor-bar">
-              <span className="file-name">App.jsx</span>
+              <span className="file-name">{level.typescript ? 'App.tsx' : 'App.jsx'}</span>
               <div className="editor-actions">
                 <Button size="small" variant="ghost" onClick={resetCode}>
                   ↺ Reset
@@ -447,7 +447,7 @@ export function Level({ level, go, playground = false }) {
               </div>
             </div>
             <div className="editor-host">
-              <Editor value={source} onChange={setSource} onSubmit={playground ? undefined : () => !victory && !showStory && check()} />
+              <Editor value={source} onChange={setSource} typescript={Boolean(level.typescript)} onSubmit={playground ? undefined : () => !victory && !showStory && check()} />
             </div>
           </div>
           <div className="preview-wrap">

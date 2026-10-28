@@ -81,6 +81,8 @@ Common fields:
 | `css` | optional CSS string injected into the preview (scoped to the preview). |
 | `routes`, `fetchDelay` | optional fake API for `fetch` (see below). |
 | `previewProps` | optional props passed to `App` in the live preview. |
+| `typescript` | `true` makes the level a TypeScript level: the file is `App.tsx`, types are stripped (not type-checked) before running. |
+| `modules` | optional fake libraries the player can import: `modules: ({ timers, fetch }) => ({ 'tiny-router': { ... } })` (or a plain object). Called once per sandbox, so every check gets fresh module state. Use it to provide a store, a router, a testing library, a chat `connect()` etc. Checks can reach the same instances via the player's own imports, or build them in the level file and close over them. |
 
 The player's file must `export default` a component (named `App` by convention).
 Single file: put helper components in the same file above `App`.

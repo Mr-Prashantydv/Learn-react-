@@ -15,13 +15,13 @@ const theme = EditorView.theme({
   '.cm-activeLineGutter': { background: 'rgba(97,218,251,0.08)' },
 });
 
-export function Editor({ value, onChange, onSubmit, readOnly = false, height = '100%' }) {
+export function Editor({ value, onChange, onSubmit, readOnly = false, height = '100%', typescript = false }) {
   // The extensions are memoized, so the submit handler is read through a ref.
   const onSubmitRef = useRef(onSubmit);
   onSubmitRef.current = onSubmit;
   const extensions = useMemo(
     () => [
-      javascript({ jsx: true }),
+      javascript({ jsx: true, typescript }),
       theme,
       EditorView.lineWrapping,
       // Ctrl/⌘ + Enter submits instead of the default keymap's insertBlankLine.
@@ -38,7 +38,7 @@ export function Editor({ value, onChange, onSubmit, readOnly = false, height = '
         ]),
       ),
     ],
-    [],
+    [typescript],
   );
   return (
     <CodeMirror
