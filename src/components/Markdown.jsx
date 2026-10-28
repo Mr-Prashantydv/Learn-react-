@@ -243,7 +243,7 @@ export function renderInline(text) {
     if (m.index > last) out.push(text.slice(last, m.index));
     const s = m[0];
     if (s.startsWith('`')) out.push(<code key={k++} className="code-inline">{s.slice(1, -1)}</code>);
-    else if (s.startsWith('**')) out.push(<strong key={k++}>{s.slice(2, -2)}</strong>);
+    else if (s.startsWith('**')) out.push(<strong key={k++}>{renderInline(s.slice(2, -2))}</strong>);
     else if (s.startsWith('[')) {
       const mm = s.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
       out.push(
@@ -251,7 +251,7 @@ export function renderInline(text) {
           {mm[1]}
         </a>,
       );
-    } else out.push(<em key={k++}>{s.slice(1, -1)}</em>);
+    } else out.push(<em key={k++}>{renderInline(s.slice(1, -1))}</em>);
     last = m.index + s.length;
   }
   if (last < text.length) out.push(text.slice(last));

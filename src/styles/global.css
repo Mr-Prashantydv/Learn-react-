@@ -856,7 +856,8 @@ button.link {
   transition: transform 0.12s ease;
 }
 .avatar-pick:hover {
-  transform: translateY(-3px);
+  border-color: var(--cyan);
+  background: #141f3d;
 }
 .avatar-pick.selected {
   border-color: var(--gold);
@@ -1093,7 +1094,7 @@ button.link {
   scroll-margin: 160px;
 }
 .node:hover:not(:disabled) {
-  transform: translateY(-3px) scale(1.06);
+  transform: scale(1.08);
 }
 .node:active:not(:disabled) {
   transform: translateY(3px);
@@ -1920,7 +1921,10 @@ button.link {
 }
 .quiz-option:hover:not(:disabled) {
   border-color: var(--cyan);
-  transform: translateY(-2px);
+  background: #141f3d;
+  box-shadow:
+    0 4px 0 #070b18,
+    0 0 0 3px rgba(97, 218, 251, 0.15);
 }
 .quiz-option:disabled {
   cursor: default;

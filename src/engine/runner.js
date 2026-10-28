@@ -3,7 +3,7 @@ import ReactDOMClient from 'react-dom/client';
 import ReactDOM from 'react-dom';
 import JSXRuntime from 'react/jsx-runtime';
 import { compileSource, createLoopGuard } from './compile.js';
-import { createFakeTimers, createRealTimers } from './timers.js';
+import { createFakeTimers, createRealTimers, waitForRealTimers } from './timers.js';
 import { createTestContext } from './testkit.js';
 
 const { createRoot } = ReactDOMClient;
@@ -16,9 +16,30 @@ const { act } = React;
 export function createFakeFetch(routes = {}, timers, delay = 500) {
   const calls = [];
   const fetchImpl = (url, options = {}) =>
-    new Promise((resolve) => {
+    new Promise((resolve, reject) => {
       calls.push({ url: String(url), options });
-      timers.setTimeout(() => {
+      const signal = options && options.signal;
+      const abortError = () => {
+        const err = new Error('The operation was aborted.');
+        err.name = 'AbortError';
+        return err;
+      };
+      if (signal && signal.aborted) {
+        reject(abortError());
+        return;
+      }
+      let timerId;
+      if (signal && typeof signal.addEventListener === 'function') {
+        signal.addEventListener(
+          'abort',
+          () => {
+            timers.clearTimeout(timerId);
+            reject(abortError());
+          },
+          { once: true },
+        );
+      }
+      timerId = timers.setTimeout(() => {
         const path = String(url).split('?')[0];
         const route = routes[path];
         let status = 200;
@@ -229,8 +250,10 @@ export function formatRuntimeError(err) {
 function runtimeHint(message) {
   if (/is not defined/.test(message)) {
     const name = message.match(/^(\w+) is not defined/)?.[1];
-    if (name && ['useState', 'useEffect', 'useRef', 'useReducer', 'useContext', 'useMemo', 'useCallback', 'useTransition', 'useDeferredValue', 'useId', 'useOptimistic', 'useActionState', 'use', 'memo', 'createContext', 'forwardRef', 'Fragment', 'startTransition', 'Suspense', 'lazy'].includes(name))
+    if (name && ['useState', 'useEffect', 'useRef', 'useReducer', 'useContext', 'useMemo', 'useCallback', 'useTransition', 'useDeferredValue', 'useId', 'useOptimistic', 'useActionState', 'use', 'memo', 'createContext', 'forwardRef', 'Fragment', 'startTransition', 'Suspense', 'lazy', 'useImperativeHandle', 'useLayoutEffect', 'useSyncExternalStore', 'Component', 'StrictMode'].includes(name))
       return `Did you forget to import it? Add \`import { ${name} } from 'react';\` at the top.`;
+    if (name === 'createPortal' || name === 'useFormStatus' || name === 'flushSync')
+      return `Did you forget to import it? Add \`import { ${name} } from 'react-dom';\` at the top.`;
     return 'Something is used before it is declared or imported. Check the spelling.';
   }
   if (/Too many re-renders/.test(message))
@@ -306,6 +329,7 @@ export function mountPreview({ container, App, resetKey, onError, props = {} }) 
  * Resolves with `[{ name, pass, message }]` and the compile/runtime error (if any).
  */
 export async function runQuestTests(level, source, { onProgress } = {}) {
+  await waitForRealTimers();
   const sandbox = createSandbox({ level, mode: 'test' });
   const evaluated = evaluateSource(source, sandbox);
   const results = [];
@@ -347,6 +371,17 @@ export async function runQuestTests(level, source, { onProgress } = {}) {
       } catch (err) {
         message = err instanceof Error ? err.message : String(err);
       } finally {
+        // Let anything still in flight (async Actions awaiting a timer, fake
+        // fetches) settle before tearing down. React tracks pending async
+        // Actions globally, so one left hanging would block every later
+        // Action on the page.
+        for (let k = 0; k < 20 && testSandbox.timers.pendingTimeouts() > 0; k++) {
+          try {
+            await ctx.tick(2000);
+          } catch {
+            /* the check already has its verdict */
+          }
+        }
         await ctx.cleanup();
         testSandbox.timers.reset();
       }

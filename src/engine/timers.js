@@ -52,15 +52,49 @@ export function createFakeTimers() {
       now = 0;
     },
   };
+  liveRealTimers.add(timers);
   return timers;
 }
 
-/** Real timers, but tracked so that we can clean them up and count leaks. */
+/**
+ * Real timers, but tracked so the preview can be torn down cleanly.
+ *
+ * `reset()` clears intervals immediately but lets pending timeouts fire:
+ * an async Action awaiting a timer must be allowed to finish, otherwise React
+ * (which tracks pending Actions globally) would keep every later Action on
+ * the page pending forever. Timeouts scheduled after a reset are still
+ * honoured for a short grace period, so promise chains can complete, but a
+ * runaway setTimeout loop dies out.
+ */
+const liveRealTimers = new Set();
+
+/**
+ * Resolves once no preview sandbox has a pending timeout (or after `maxMs`).
+ * React entangles every in-flight async Action on the page, so a quest check
+ * started while a preview Action is still awaiting a timer would stall.
+ */
+export function waitForRealTimers(maxMs = 2500) {
+  const start = Date.now();
+  return new Promise((resolve) => {
+    const poll = () => {
+      let pending = 0;
+      for (const t of liveRealTimers) pending += t.pendingTimeouts();
+      if (pending === 0 || Date.now() - start >= maxMs) resolve();
+      else setTimeout(poll, 50);
+    };
+    poll();
+  });
+}
+
 export function createRealTimers() {
   const active = new Map();
+  let disposedAt = null;
+  const GRACE_MS = 5000;
+  const allowed = () => disposedAt === null || Date.now() - disposedAt < GRACE_MS;
   const timers = {
     kind: 'real',
     setTimeout: (fn, delay, ...args) => {
+      if (!allowed()) return 0;
       const id = setTimeout(() => {
         active.delete(id);
         fn(...args);
@@ -69,6 +103,7 @@ export function createRealTimers() {
       return id;
     },
     setInterval: (fn, delay, ...args) => {
+      if (disposedAt !== null) return 0;
       const id = setInterval(() => fn(...args), delay);
       active.set(id, 'interval');
       return id;
@@ -85,14 +120,18 @@ export function createRealTimers() {
     advance: () => {},
     pendingTimeouts: () => [...active.values()].filter((k) => k === 'timeout').length,
     pendingIntervals: () => [...active.values()].filter((k) => k === 'interval').length,
-    /** Clears everything the sandbox created (called when the preview is torn down). */
+    /** Called when the preview is torn down. */
     reset() {
+      setTimeout(() => liveRealTimers.delete(timers), GRACE_MS);
+      disposedAt = Date.now();
       for (const [id, kind] of active) {
-        if (kind === 'interval') clearInterval(id);
-        else clearTimeout(id);
+        if (kind === 'interval') {
+          clearInterval(id);
+          active.delete(id);
+        }
       }
-      active.clear();
     },
   };
+  liveRealTimers.add(timers);
   return timers;
 }
