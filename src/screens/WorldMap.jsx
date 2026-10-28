@@ -178,7 +178,7 @@ export function WorldMap({ go, focusLevelId }) {
       )}
 
       {selected && (
-        <Modal onClose={() => setSelected(null)}>
+        <Modal onClose={() => setSelected(null)} labelledBy="level-card-title">
           <LevelCard
             level={selected}
             status={levelStatus(state, allLevels, selected.id)}
@@ -202,7 +202,7 @@ function LevelCard({ level, status, completed, onStart, onClose }) {
           <div className="muted">
             {chapter.title} · Quest {level.levelIndex + 1}
           </div>
-          <h3>{level.title}</h3>
+          <h3 id="level-card-title">{level.title}</h3>
         </div>
       </div>
       <div className="level-card-tags">
@@ -216,7 +216,7 @@ function LevelCard({ level, status, completed, onStart, onClose }) {
         <Button variant="ghost" onClick={onClose}>
           Close
         </Button>
-        <Button variant="primary" onClick={onStart} disabled={status === 'locked'}>
+        <Button variant="primary" onClick={onStart} disabled={status === 'locked'} data-autofocus>
           {completed ? 'Replay quest' : level.boss ? 'Face the boss' : 'Start quest'} ▸
         </Button>
       </div>

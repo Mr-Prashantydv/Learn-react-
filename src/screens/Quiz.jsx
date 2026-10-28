@@ -42,6 +42,7 @@ export function Quiz({ level, go }) {
   };
 
   const advance = () => {
+    if (victory) return;
     play('click');
     if (i + 1 < questions.length) {
       setI(i + 1);

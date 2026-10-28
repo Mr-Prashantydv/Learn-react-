@@ -144,7 +144,7 @@ export function parseBlocks(text) {
       while (i < lines.length && lines[i].startsWith('|')) rows.push(lines[i++]);
       const cells = rows
         .filter((r) => !/^\|\s*-+/.test(r))
-        .map((r) => r.split('|').slice(1, -1).map((c) => c.trim()));
+        .map((r) => splitTableRow(r).slice(1, -1).map((c) => c.trim()));
       blocks.push({ type: 'table', head: cells[0], rows: cells.slice(1) });
       continue;
     }
@@ -256,4 +256,34 @@ export function renderInline(text) {
   }
   if (last < text.length) out.push(text.slice(last));
   return out;
+}
+
+/**
+ * Splits a table row on `|`, except inside inline code (`a || b`) or when
+ * escaped as `\|`.
+ */
+function splitTableRow(row) {
+  const cells = [''];
+  let tick = 0; // length of the backtick run that opened the current code span
+  for (let i = 0; i < row.length; i++) {
+    const ch = row[i];
+    if (ch === '\\' && row[i + 1] === '|') {
+      cells[cells.length - 1] += '|';
+      i++;
+      continue;
+    }
+    if (ch === '`') {
+      let run = 1;
+      while (row[i + run] === '`') run++;
+      if (!tick) tick = run;
+      else if (run === tick) tick = 0;
+      cells[cells.length - 1] += row.slice(i, i + run);
+      i += run - 1;
+      continue;
+    }
+    if (ch === '|' && !tick) cells.push('');
+    else cells[cells.length - 1] += ch;
+  }
+  // An unmatched backtick is just a character: fall back to a plain split.
+  return tick ? row.split('|') : cells;
 }

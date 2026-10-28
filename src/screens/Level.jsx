@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../game/store.jsx';
 import { allLevels, chapters } from '../content/index.js';
-import { computeStars, xpForStars, rankFor } from '../game/progression.js';
+import { rankFor } from '../game/progression.js';
 import { createSandbox, evaluateSource, mountPreview, runQuestTests } from '../engine/runner.js';
 import { Editor } from '../components/Editor.jsx';
 import { Markdown } from '../components/Markdown.jsx';
@@ -61,6 +61,12 @@ export function Level({ level, go, playground = false }) {
   const previewRef = useRef(null);
   const handleRef = useRef(null);
   const sandboxRef = useRef(null);
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
+  const lastRewardRef = useRef(state.lastReward);
+  lastRewardRef.current = state.lastReward;
+  // Set while a COMPLETE_LEVEL we dispatched is waiting for the reducer's reward.
+  const awaitingRewardRef = useRef(null);
 
   useEffect(() => {
     if (level.boss && !completed) play('boss');
@@ -73,6 +79,18 @@ export function Level({ level, go, playground = false }) {
     }, 500);
     return () => clearTimeout(id);
   }, [source, level.id, dispatch, playground]);
+
+  // Flush the latest draft when leaving the level or the page, so edits made
+  // in the last moments before navigating away are not lost.
+  useEffect(() => {
+    if (playground) return undefined;
+    const flush = () => dispatch({ type: 'SAVE_DRAFT', levelId: level.id, source: sourceRef.current });
+    window.addEventListener('pagehide', flush);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      flush();
+    };
+  }, [level.id, dispatch, playground]);
 
   // Live preview (debounced). Also forwards React's dev warnings to the console panel.
   useEffect(() => {
@@ -208,23 +226,10 @@ export function Level({ level, go, playground = false }) {
     setChecking(false);
     const allPass = !outcome.error && outcome.results.length > 0 && outcome.results.every((r) => r.pass);
     if (allPass) {
-      const attempts = ls.attempts + 1;
-      const stars = computeStars({ ...ls, attempts });
-      const earned = xpForStars(level.xp || 100, stars);
-      const xp = Math.max(0, earned - (completed?.xp || 0));
+      // The reward shown is the one the reducer saves (see the effect below),
+      // so a hint revealed mid-check cannot make the modal disagree with it.
+      awaitingRewardRef.current = { prev: lastRewardRef.current };
       dispatch({ type: 'COMPLETE_LEVEL', level });
-      const freshConcepts = (level.concepts || []).filter((c) => !state.codex.includes(c.id));
-      const freshBadge = level.badge && !state.badges.includes(level.badge.id) ? level.badge : null;
-      const before = rankFor(state.xp);
-      const after = rankFor(state.xp + xp);
-      setVictory({
-        stars,
-        xp,
-        badge: freshBadge,
-        concepts: freshConcepts,
-        solutionShown: ls.solutionShown,
-        rankUp: after.level > before.level ? after : null,
-      });
     } else {
       const passedNow = outcome.results.filter((r) => r.pass).length;
       if (level.boss && passedNow > bestPassRef.current) {
@@ -234,10 +239,29 @@ export function Level({ level, go, playground = false }) {
       bestPassRef.current = Math.max(bestPassRef.current, passedNow);
       setTab('quest');
     }
-  }, [checking, playground, dispatch, level, source, ls, completed, state.codex, state.badges, state.xp]);
+  }, [checking, playground, dispatch, level, source]);
+
+  useEffect(() => {
+    const reward = state.lastReward;
+    const waiting = awaitingRewardRef.current;
+    if (!waiting || !reward || reward === waiting.prev || reward.levelId !== level.id) return;
+    awaitingRewardRef.current = null;
+    const before = rankFor(reward.xpBefore);
+    const after = rankFor(reward.xpAfter);
+    setVictory({
+      stars: reward.stars,
+      xp: reward.xp,
+      badge: reward.badge,
+      concepts: reward.concepts,
+      solutionShown: reward.solutionShown,
+      rankUp: after.level > before.level ? after : null,
+    });
+  }, [state.lastReward, level.id]);
 
   useEffect(() => {
     const onKey = (e) => {
+      // The editor handles its own Ctrl/⌘ + Enter (and prevents the default).
+      if (e.defaultPrevented || victory || showStory) return;
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
         check();
@@ -245,7 +269,7 @@ export function Level({ level, go, playground = false }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [check]);
+  }, [check, victory, showStory]);
 
   const resetCode = () => {
     if (window.confirm('Reset the editor to the starting code?')) {
@@ -423,7 +447,7 @@ export function Level({ level, go, playground = false }) {
               </div>
             </div>
             <div className="editor-host">
-              <Editor value={source} onChange={setSource} />
+              <Editor value={source} onChange={setSource} onSubmit={playground ? undefined : () => !victory && !showStory && check()} />
             </div>
           </div>
           <div className="preview-wrap">

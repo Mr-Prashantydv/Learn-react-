@@ -1293,6 +1293,10 @@ export default {
             t.text() === first,
             'The forge looked different after React rendered it a second time. A pure component returns the same JSX for the same props, every time. Remove any code that changes outside variables or props while rendering.',
           );
+          t.sourceExcludes(
+            /\bticketCount\s*(?:[-+*\/]?=(?!=)|\+\+|--)|(?:\+\+|--)\s*ticketCount\b/,
+            'Ticket still changes the outside ticketCount variable while rendering. Delete ticketCount and the line that increases it: Ticket should only read its number prop.',
+          );
         }),
       ],
       concepts: [

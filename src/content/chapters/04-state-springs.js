@@ -318,7 +318,7 @@ export default {
 
         1. **Trigger** — the first render, or a call to a state setter.
         2. **Render** — React *calls your component function* to get the new JSX.
-        3. **Commit** — React compares the result with the previous one and changes **only the DOM nodes that differ**.
+        3. **Commit** — React applies the changes to the real DOM. It already worked out during rendering which nodes differ from last time, so it touches **only the DOM nodes that differ**.
 
         "Rendering" means *calling your component*, not painting pixels. That's why render
         must stay pure: React may call it whenever it needs fresh JSX.
@@ -1049,9 +1049,12 @@ export default {
         test('Every update uses the updater form (and the three splash() calls stay)', (t) => {
           t.sourceExcludes(
             /setWater\(\s*water\b(?!\s*=>)/,
-            'A setter still computes from the stale snapshot: setWater(water ...). Use the updater form, e.g. setWater((w) => w + 1).',
+            'This quest practises updater functions: every setWater(...) that builds on the old value should pass a function, e.g. setWater((w) => w + 1) and setWater((w) => w * 2).',
           );
-          t.sourceIncludes(/setWater\(\s*\(?\s*\w+\s*\)?\s*=>/, 'Use updater functions: setWater((w) => w + 1).');
+          t.sourceIncludes(
+            /setWater\(\s*(\(?\s*\w+\s*\)?\s*=>|function\b|[a-zA-Z_$][\w$]*\s*\))/,
+            'Pass a function to setWater (an updater), e.g. setWater((w) => w + 1).',
+          );
           t.sourceIncludes(
             /splash\(\)\s*;?\s*splash\(\)\s*;?\s*splash\(\)/,
             'Keep the three separate splash() calls in handleTriple. The quest is to make queued updates work, not to merge them.',
@@ -1777,8 +1780,8 @@ export default {
           const hero = textOf(t, '.hero .hp-text');
           t.expect(hero === 'Hero HP: 80', `After a Triple Strike the hero shows "${hero}" — expected "Hero HP: 80" (the boss strikes back once).`);
           t.sourceIncludes(
-            /strike\(\)\s*;?\s*strike\(\)\s*;?\s*strike\(\)/,
-            'handleTripleStrike must really strike three times: call strike(); strike(); strike(); — that is what makes it a test of updater functions.',
+            /strike\(\)\s*;?\s*strike\(\)\s*;?\s*strike\(\)|for\s*\([^)]*\b3\b[^)]*\)\s*\{?\s*strike\(\)/,
+            'handleTripleStrike must really strike three times: call strike() three times (strike(); strike(); strike(); or a loop) — that is what makes it a test of updater functions.',
           );
         }),
         test('🧪 Potions heal 30, never above 100, and run out', (t) => {

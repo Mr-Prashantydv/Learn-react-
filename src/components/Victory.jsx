@@ -40,12 +40,12 @@ export function VictoryModal({ reward, level, onNext, onMap, hasNext, onFinale, 
   const line = praise[(level.id.length + reward.stars) % praise.length];
 
   return (
-    <Modal className="victory" onClose={() => {}}>
+    <Modal className="victory" onClose={() => {}} labelledBy="victory-title">
       <div className="victory-header">
         <PipSprite size={64} mood="happy" />
         <div>
           <p className="victory-kicker">{level.boss ? 'BOSS DEFEATED' : level.type === 'quiz' ? 'TRIAL PASSED' : 'QUEST COMPLETE'}</p>
-          <h2>{line}</h2>
+          <h2 id="victory-title">{line}</h2>
         </div>
       </div>
       <div className="victory-stars">
@@ -95,14 +95,16 @@ export function VictoryModal({ reward, level, onNext, onMap, hasNext, onFinale, 
         </div>
       )}
       <div className="victory-actions">
-        <Button onClick={onMap}>🗺️ World map</Button>
+        <Button onClick={onMap} data-autofocus={!onFinale && !hasNext ? true : undefined}>
+          🗺️ World map
+        </Button>
         {onFinale && (
-          <Button variant="gold" onClick={onFinale}>
+          <Button variant="gold" onClick={onFinale} data-autofocus>
             🏆 The end...?
           </Button>
         )}
         {hasNext && !onFinale && (
-          <Button variant="primary" onClick={onNext}>
+          <Button variant="primary" onClick={onNext} data-autofocus>
             Next quest ▸
           </Button>
         )}

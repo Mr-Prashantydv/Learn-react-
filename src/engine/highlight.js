@@ -9,6 +9,10 @@ const KEYWORDS = new Set([
   'static', 'yield', 'delete', 'void',
 ]);
 const LITERALS = new Set(['true', 'false', 'null', 'undefined', 'NaN', 'Infinity']);
+// After these keywords a `<` starts JSX, never a comparison (`return <p>…</p>`).
+const JSX_AFTER = new Set([
+  'return', 'yield', 'await', 'case', 'default', 'else', 'in', 'of', 'typeof', 'void', 'delete', 'throw', 'new', 'do',
+]);
 
 export function tokenize(code) {
   const tokens = [];
@@ -145,7 +149,8 @@ export function tokenize(code) {
     if (ch === '<' && (next === '>' || /[A-Za-z]/.test(next) || next === '/')) {
       // JSX opening: `<Tag`, fragment `<>` or closing `</`
       const prevSig = lastSignificant(code, i);
-      const looksLikeJsx = next === '/' || next === '>' || !/[\w$)\]]/.test(prevSig);
+      const looksLikeJsx =
+        next === '/' || next === '>' || JSX_AFTER.has(lastWord(code, i)) || !/[\w$)\]]/.test(prevSig);
       if (looksLikeJsx) {
         if (next === '>') {
           push('punct', '<>');
@@ -228,6 +233,16 @@ function lastSignificant(code, i) {
   let j = i - 1;
   while (j >= 0 && /\s/.test(code[j])) j--;
   return j >= 0 ? code[j] : '';
+}
+
+/** The identifier that ends right before position `i` (skipping whitespace), if any. */
+function lastWord(code, i) {
+  let j = i - 1;
+  while (j >= 0 && /\s/.test(code[j])) j--;
+  const end = j + 1;
+  while (j >= 0 && /[\w$]/.test(code[j])) j--;
+  if (j >= 0 && code[j] === '.') return '';
+  return code.slice(j + 1, end);
 }
 
 function findLastIndex(arr, pred) {

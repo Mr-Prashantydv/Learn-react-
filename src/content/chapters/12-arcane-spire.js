@@ -149,6 +149,10 @@ async function openDuel(t, body) {
   await t.flush();
   t.click(t.button('Challenge'));
   const duel = body.one('.duel');
+  if (!duel && body.one('.ward-fallback'))
+    t.fail(
+      'Your Duel crashed as soon as it rendered, and your Ward caught it: that is why "🛡️ The ward held!" shows up right after ⚔️ Challenge. Look for the error in Duel (the console shows it). For example, castSpell must be defined before useActionState(castSpell, …) runs: keep it an `async function castSpell(…)` declaration, which is hoisted, not a const arrow function.',
+    );
   if (!duel)
     t.fail(
       'Clicking ⚔️ Challenge should open the .duel. When dueling is true, render <Arena …><Ward><Duel /></Ward></Arena> with createPortal(…, document.body).',
@@ -1404,6 +1408,14 @@ export default {
           t.type('input[name="to"]', 'Pip');
           await postLetter(t);
           const error = t.$('.owl-error');
+          if (!error) {
+            await t.tick(1000);
+            await t.flush();
+            t.expect(
+              !t.$('.owl-error'),
+              'The error only appeared after the owl had flown (1 s later): sendLetter sent the empty letter first. Check !message.trim() and return the error state BEFORE calling await sendByOwl(…).',
+            );
+          }
           t.expect(
             error,
             "Submitting an empty message should show <p className=\"owl-error\">. Return { ...prevState, error: 'An owl cannot carry an empty letter!' } from sendLetter, and render state.error.",
@@ -1947,10 +1959,13 @@ export default {
           title: "'use client' & 'use server'",
           summary: "'use client' marks where client code begins; 'use server' marks Server Functions.",
           snippet: code`
-            'use client'; // top of LikeButton.jsx: shipped to the browser
+            // LikeButton.jsx: shipped to the browser
+            'use client';
+            import { savePost } from './actions.js';
 
-            async function savePost(formData) {
-              'use server'; // runs on the server, callable from the client
+            // actions.js: runs on the server, callable from the client
+            'use server';
+            export async function savePost(formData) {
               await db.posts.create({ title: formData.get('title') });
             }
           `,
@@ -2128,6 +2143,7 @@ export default {
           const [state, formAction, isPending] = useActionState(castSpell, { hp: 100, log: [] });
           // TODO 6: const [optimisticHp, strike] = useOptimistic(state.hp, ...);
 
+          // keep this a function declaration: useActionState above already uses it
           async function castSpell(prevState, formData) {
             // TODO 4: read the spell, (TODO 6: strike for 25), await spellLands(spell),
             //         then return the new state

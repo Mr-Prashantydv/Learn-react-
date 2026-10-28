@@ -258,6 +258,11 @@ export default {
             status().includes('The gate swings open!'),
             `After typing "state", .gate-status reads "${status()}" — expected "🔓 The gate swings open!". Derive const isOpen = word === 'STATE' during render.`,
           );
+          t.type('input.rune-input', 'states');
+          t.expect(
+            status().includes('The gate is sealed'),
+            `"STATES" is not the password, but .gate-status reads "${status()}". Only the exact word STATE opens the gate: word === 'STATE'.`,
+          );
         }),
       ],
       concepts: [
@@ -527,6 +532,7 @@ export default {
           );
         }),
         test('The enchantment radios are controlled (fire starts checked)', (t) => {
+          t.sourceExcludes(/\bdefaultChecked\s*=/, 'Control the radios with checked={element === el}, not defaultChecked.');
           t.render();
           const radio = (v) => t.find(`input[type="radio"][value="${v}"]`);
           t.expect(
@@ -561,6 +567,7 @@ export default {
           );
         }),
         test('The note textarea is controlled and counted', (t) => {
+          t.sourceExcludes(/\bdefaultValue\s*=/, 'Control the textarea with value={note}, not defaultValue.');
           t.render();
           const area = t.find('textarea');
           t.expect(
@@ -664,7 +671,7 @@ export default {
         \`\`\`jsx
         function handleSubmit(e) {
           e.preventDefault();               // stop the browser's full-page reload
-          setRoster([...roster, form]);     // use the data
+          setRoster([...roster, { ...form, id: nextId++ }]);     // use the data (with a unique id for the key)
           setForm(EMPTY);                   // reset: controlled fields clear themselves
         }
 
@@ -712,7 +719,7 @@ export default {
 
         1. Write **one** \`handleChange(e)\` that updates the field named by \`e.target.name\`, using a computed key: \`setForm({ ...form, [name]: ... })\`. Store \`checked\` for the checkbox and \`value\` for everything else. All three fields already call it.
         2. Derive \`canSubmit\` during render: the **trimmed** name has **at least 2 characters** AND the oath box is ticked. Disable the **Enlist** button whenever \`canSubmit\` is false.
-        3. Finish \`handleSubmit\` (it already calls \`e.preventDefault()\`): add the recruit to \`roster\` with the name **trimmed**, then reset the form to \`EMPTY\`.
+        3. Finish \`handleSubmit\` (it already calls \`e.preventDefault()\`): add the recruit to \`roster\` as \`{ ...form, name: <trimmed name>, id: nextId++ }\` (the list uses \`key={r.id}\`), then reset the form to \`EMPTY\`.
 
         Each roster entry is an \`<li>\` in \`<ul className="roster">\` reading **{name} of the {guild}**, e.g. **Ada of the Knights** (already written).
       `,
@@ -720,6 +727,7 @@ export default {
         import { useState } from 'react';
 
         const EMPTY = { name: '', guild: 'Mages', oath: false };
+        let nextId = 1;
 
         export default function App() {
           const [form, setForm] = useState(EMPTY);
@@ -767,6 +775,7 @@ export default {
         import { useState } from 'react';
 
         const EMPTY = { name: '', guild: 'Mages', oath: false };
+        let nextId = 1;
 
         export default function App() {
           const [form, setForm] = useState(EMPTY);
@@ -782,7 +791,7 @@ export default {
           function handleSubmit(e) {
             e.preventDefault(); // stops the browser from reloading the page
             if (!canSubmit) return;
-            setRoster([...roster, { ...form, name: form.name.trim(), id: roster.length + 1 }]);
+            setRoster([...roster, { ...form, name: form.name.trim(), id: nextId++ }]);
             setForm(EMPTY);
           }
 
@@ -817,7 +826,7 @@ export default {
       hints: [
         md`Start the handler with \`const { name, value, type, checked } = e.target;\`. Those four come straight from the input that changed.`,
         md`\`setForm({ ...form, [name]: type === 'checkbox' ? checked : value });\` then \`const canSubmit = form.name.trim().length >= 2 && form.oath;\` and \`disabled={!canSubmit}\` on the button.`,
-        md`In \`handleSubmit\`, after \`e.preventDefault()\`: \`setRoster([...roster, { ...form, name: form.name.trim(), id: roster.length + 1 }]);\` and \`setForm(EMPTY);\`.`,
+        md`In \`handleSubmit\`, after \`e.preventDefault()\`: \`setRoster([...roster, { ...form, name: form.name.trim(), id: nextId++ }]);\` and \`setForm(EMPTY);\`.`,
       ],
       tests: [
         test('One handleChange updates every field', (t) => {
@@ -841,6 +850,10 @@ export default {
             'The oath box cannot be unticked. A checkbox\'s e.target.value is always "on"; store type === \'checkbox\' ? checked : value.',
           );
           t.sourceIncludes(COMPUTED_KEY, 'Use a computed key in handleChange: setForm({ ...form, [name]: ... }).');
+          t.sourceIncludes(
+            /\.\.\.\s*[\w$.]+\s*,\s*\[/,
+            'Changing one field must keep the others: copy them with ...form before the computed key, setForm({ ...form, [name]: ... }).',
+          );
         }),
         test('Enlist stays disabled until the recruit is ready', (t) => {
           t.render();
@@ -857,6 +870,7 @@ export default {
           );
         }),
         test('Enlisting adds "Ada of the Knights" to the roster', (t) => {
+          t.sourceExcludes(/\broster\s*\.\s*push\s*\(/, "Don't mutate roster with .push(). Create a new array: setRoster([...roster, recruit]).");
           t.render();
           t.type('input[name="name"]', 'Ada');
           t.change('select[name="guild"]', 'Knights');
@@ -1013,8 +1027,9 @@ export default {
         :::
 
         :::tip
-        When in doubt, control it. Uncontrolled fields are simpler, but React can't react
-        to them while the user types.
+        When in doubt, control it. Uncontrolled fields are simpler, but React doesn't own
+        their value: it can't reformat or reset them, and without an \`onChange\` it never
+        even sees the keystrokes.
         :::
       `,
       task: md`
@@ -1165,6 +1180,7 @@ export default {
             `You typed "two sleepy dragons" but the note shows "${area.value}". value="..." without onChange freezes it; switch to defaultValue.`,
           );
           t.sourceIncludes(/defaultValue\s*=/, 'Make the cargo note uncontrolled with defaultValue="3 crates of potions" (no state needed).');
+          t.change('input.lower', true);
           t.expect(submitForm(t), NO_RELOAD);
           const msg = clean(t.$('.message')?.textContent);
           t.expect(
@@ -1709,9 +1725,10 @@ export default {
 
         ## The golem's weakness
 
-        Uncontrolled fields are invisible to React while the user types. Nothing
-        re-renders, so nothing derived from the fields (rune checks, HP, a disabled button)
-        can ever update. Live feedback **requires controlled fields**.
+        The golem's fields only have \`defaultValue\`, with no \`onChange\`, so React never
+        hears a keystroke. Nothing re-renders, so nothing derived from the fields (rune checks,
+        HP, a disabled button) can update. Control them and every keystroke flows through
+        state, so everything derived stays live.
 
         Once everything lives in state, the runes are just a calculation:
 
@@ -1886,7 +1903,7 @@ export default {
       tests: [
         test('One form object controls every field (no defaults left)', (t) => {
           t.sourceExcludes(
-            /defaultValue|defaultChecked/,
+            /\bdefault(Value|Checked)\s*=/,
             'The golem still has defaultValue / defaultChecked fields. Replace them with value={form.…} / checked={form.oath} plus onChange={handleChange}.',
           );
           t.sourceIncludes(COMPUTED_KEY, 'Use ONE handleChange with a computed key: setForm({ ...form, [name]: ... }).');
@@ -1979,7 +1996,7 @@ export default {
             const passed = rules.filter(Boolean).length;
             <button disabled={passed < rules.length}>Submit</button>
           `,
-          detail: 'Uncontrolled fields can\'t drive live feedback, because React never re-renders while the user types into them.',
+          detail: 'A field with only defaultValue and no onChange never tells React about keystrokes, so nothing derived from it can update. Control it to get live feedback.',
         },
       ],
       css: `

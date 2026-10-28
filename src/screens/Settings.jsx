@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { useGame } from '../game/store.jsx';
+import { sanitizeSave, useGame } from '../game/store.jsx';
 import { Button } from '../components/ui.jsx';
 import { play } from '../game/sound.js';
 
@@ -27,7 +27,7 @@ export function Settings({ go }) {
     if (!file) return;
     try {
       const data = JSON.parse(await file.text());
-      if (!data || typeof data !== 'object' || !data.player) throw new Error('Not a Reactoria save file');
+      if (!sanitizeSave(data)) throw new Error('Not a Reactoria save file');
       dispatch({ type: 'IMPORT', state: data });
       play('unlock');
       alert('Save imported!');

@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { EditorView } from '@codemirror/view';
+import { EditorView, keymap } from '@codemirror/view';
+import { Prec } from '@codemirror/state';
 
 const theme = EditorView.theme({
   '&': { fontSize: '14px', height: '100%' },
@@ -14,8 +15,31 @@ const theme = EditorView.theme({
   '.cm-activeLineGutter': { background: 'rgba(97,218,251,0.08)' },
 });
 
-export function Editor({ value, onChange, readOnly = false, height = '100%' }) {
-  const extensions = useMemo(() => [javascript({ jsx: true }), theme, EditorView.lineWrapping], []);
+export function Editor({ value, onChange, onSubmit, readOnly = false, height = '100%' }) {
+  // The extensions are memoized, so the submit handler is read through a ref.
+  const onSubmitRef = useRef(onSubmit);
+  onSubmitRef.current = onSubmit;
+  const extensions = useMemo(
+    () => [
+      javascript({ jsx: true }),
+      theme,
+      EditorView.lineWrapping,
+      // Ctrl/⌘ + Enter submits instead of the default keymap's insertBlankLine.
+      Prec.highest(
+        keymap.of([
+          {
+            key: 'Mod-Enter',
+            run: () => {
+              if (!onSubmitRef.current) return false;
+              onSubmitRef.current();
+              return true;
+            },
+          },
+        ]),
+      ),
+    ],
+    [],
+  );
   return (
     <CodeMirror
       value={value}

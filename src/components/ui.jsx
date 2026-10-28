@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { play } from '../game/sound.js';
 
 export function Button({ children, variant = 'default', size, sound = 'click', className = '', onClick, ...rest }) {
@@ -16,15 +16,61 @@ export function Button({ children, variant = 'default', size, sound = 'click', c
   );
 }
 
-export function Modal({ children, onClose, className = '', wide = false }) {
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+export function Modal({ children, onClose, className = '', wide = false, labelledBy }) {
+  const ref = useRef(null);
+
+  // Move focus into the dialog (so Enter can't re-trigger the button behind
+  // it) and give it back when the dialog closes.
   useEffect(() => {
-    const onKey = (e) => e.key === 'Escape' && onClose?.();
+    const previous = document.activeElement;
+    const node = ref.current;
+    const target = node?.querySelector('[data-autofocus]:not([disabled])') || node?.querySelector(FOCUSABLE) || node;
+    target?.focus({ preventScroll: true });
+    return () => {
+      if (previous && previous.isConnected && typeof previous.focus === 'function') previous.focus({ preventScroll: true });
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        onClose?.();
+        return;
+      }
+      if (e.key !== 'Tab' || !ref.current) return;
+      const items = [...ref.current.querySelectorAll(FOCUSABLE)];
+      if (!items.length) {
+        e.preventDefault();
+        ref.current.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const inside = ref.current.contains(document.activeElement);
+      if (e.shiftKey && (document.activeElement === first || !inside)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !inside)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
-      <div className={`modal ${wide ? 'modal-wide' : ''} ${className}`} role="dialog" aria-modal="true">
+      <div
+        ref={ref}
+        className={`modal ${wide ? 'modal-wide' : ''} ${className}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={labelledBy}
+        tabIndex={-1}
+      >
         {children}
       </div>
     </div>

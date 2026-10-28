@@ -1,6 +1,7 @@
 /** Full-screen confetti burst drawn on a temporary canvas. */
 export function burstConfetti({ count = 160, duration = 2600, colors } = {}) {
   if (typeof document === 'undefined') return;
+  if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
   const palette = colors || ['#61dafb', '#ffd166', '#ef476f', '#06d6a0', '#a78bfa', '#ffffff'];
   const canvas = document.createElement('canvas');
   canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999;';

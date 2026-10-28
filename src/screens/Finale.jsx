@@ -43,7 +43,7 @@ export function Finale({ go }) {
         <h1 className="finale-title">REACTORIA RESTORED</h1>
       </div>
       <div className="finale-dialog">
-        <Dialog lines={ENDING(state.player.name || 'hero')} onDone={() => go('certificate')} />
+        <Dialog lines={ENDING(state.player.name || 'hero')} onDone={() => go(state.finishedAt ? 'certificate' : 'map')} />
       </div>
     </div>
   );

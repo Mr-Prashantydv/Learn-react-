@@ -45,7 +45,7 @@ function getExport(t, name, how) {
  */
 function callReducer(t, reducer, name, state, action) {
   t.expect(typeof reducer === 'function', `${name} should be a function: export function ${name}(state, action) { ... }`);
-  const frozen = deepFreeze(clone(state));
+  const frozen = Object.isFrozen(state) ? state : deepFreeze(clone(state));
   try {
     return reducer(frozen, action);
   } catch (err) {
@@ -186,6 +186,12 @@ export default {
         - An **action** is a plain object describing what happened. By convention it has a \`type\` string (\`'gathered'\`) plus any extra data (\`amount: 5\`).
         - \`dispatch(action)\` hands the action to React. React calls \`reducer(currentState, action)\`, uses the **return value** as the next state, and re-renders.
         - The **reducer** takes \`(state, action)\` and **returns the next state**. A \`switch\` on \`action.type\` with one \`case\` per action is the usual style.
+
+        :::tip
+        New to \`switch\`? It compares one value against each \`case\` and runs the first match;
+        \`default\` runs when nothing matches. In a reducer every \`case\` ends with \`return\` —
+        without it, the code keeps running into the next case (more on that trap at the Rotten Reducer).
+        :::
 
         ## Reducers must be pure
 
@@ -651,6 +657,13 @@ export default {
           t.expect(!last.classList.contains('lit'), 'New lanterns start unlit (lit: false).');
           const count = norm(t.find('.lit-count').textContent);
           t.expect(count === '1 of 4 lanterns lit', `The counter reads "${count}" — expected "1 of 4 lanterns lit".`);
+          t.type(input, 'Comet');
+          t.submit(input);
+          t.click(rowButton(t, 'li.lantern', 'Star Gate', 'Light'));
+          t.expect(
+            !row(t, 'li.lantern', 'Comet')?.classList.contains('lit'),
+            "Lighting Star Gate also lit Comet — they share the same id. handleAdd must send a fresh one: dispatch({ type: 'added', id: nextId++, name }).",
+          );
         }),
         test('Light/Snuff and ✕ buttons dispatch to the reducer', (t) => {
           t.sourceIncludes(/\buseReducer\s*\(\s*lanternsReducer\b/, 'In App, use useReducer(lanternsReducer, initialLanterns) instead of useState for the lanterns.');

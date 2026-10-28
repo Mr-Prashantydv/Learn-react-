@@ -3,6 +3,8 @@ import { code, md, q, test } from '../helpers.js';
 // Small helpers shared by the checks in this chapter.
 const norm = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 const textOf = (t, sel) => norm(t.find(sel).textContent);
+// Source checks ignore comments, so a commented-out buggy line doesn't fail a correct solution.
+const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/.*$/gm, '$1');
 
 // --- Captain's Record helpers -------------------------------------------
 const ORIGINAL_RECORD = {
@@ -29,7 +31,7 @@ function expectResetRestores(t, action) {
   const broken = Object.keys(ORIGINAL_RECORD).filter((k) => after[k] !== ORIGINAL_RECORD[k]);
   t.expect(
     broken.length === 0,
-    `After ${action} and ↺ Reset, the record shows ${describeFields(after, broken)} instead of ${describeFields(ORIGINAL_RECORD, broken)}. initialCaptain itself was mutated! { ...captain } copies only the top level: the ship inside is still the same shared object. Copy every level on the way down instead of assigning to it.`,
+    `After ${action} and ↺ Reset, the record shows ${describeFields(after, broken)} instead of ${describeFields(ORIGINAL_RECORD, broken)}. initialCaptain itself was mutated! Spread copies only one level: any nested object you didn't spread yourself (the ship, or the hold inside it) is still shared with initialCaptain. Copy every level on the way down instead of assigning to it.`,
   );
 }
 
@@ -297,8 +299,8 @@ export default {
             shown.join(' / ') === 'Words: 4 / Hat: 🎩 / Zzz...',
             `After Feed, Fancy hat and Nap the parrot shows ${shown.map((s) => `"${s}"`).join(', ')} — expected "Words: 4", "Hat: 🎩", "Zzz...". Each update should spread the current parrot, so earlier changes are kept.`,
           );
-          t.sourceExcludes(
-            /\bparrot\.\w+\s*(=(?!=)|\+\+|--|\+=|-=)/,
+          t.expect(
+            !/\bparrot\.\w+\s*(=(?!=)|\+\+|--|\+=|-=)/.test(stripComments(t.source)),
             'Your code still assigns to a property of parrot (like parrot.words = ...). Treat state as read-only: build a new object with { ...parrot, ... } instead.',
           );
         }),
@@ -899,11 +901,12 @@ export default {
             norm(items[2].querySelector('.message')?.textContent) === 'Is anyone out there?',
             "The caught bottle should stay open after another bottle is tossed.",
           );
-          t.sourceExcludes(
-            /\.(push|unshift|splice|pop|shift)\s*\(/,
+          const liveSource = stripComments(t.source);
+          t.expect(
+            !/\.(push|unshift|splice|pop|shift)\s*\(/.test(liveSource),
             'Your code still uses a mutating array method (push, unshift, splice, pop or shift). Use spread, filter and map to make new arrays instead.',
           );
-          t.sourceExcludes(/\b\w+\.read\s*=(?!=)/, "Don't assign to .read — return a new object from map instead: { ...b, read: true }.");
+          t.expect(!/\b\w+\.read\s*=(?!=)/.test(liveSource), "Don't assign to .read — return a new object from map instead: { ...b, read: true }.");
         }),
       ],
       concepts: [
@@ -1181,6 +1184,19 @@ export default {
           t.click(t.button('Original'));
           order = beachOrder(t);
           t.expect(order === ORIGINAL_ORDER, `After inserting, ↺ Original order shows ${order}. Use slice and spread; splice() would change the array in place.`);
+          t.click(t.button('Coral'));
+          t.click(t.button('Most turtles'));
+          order = beachOrder(t);
+          t.expect(
+            order === 'Palm Bay > Coral Cove > Shell Beach > Driftwood Point',
+            `Coral Cove added, then sorted: expected Palm Bay > Coral Cove > Shell Beach > Driftwood Point, got ${order}. Sort the CURRENT beaches (beaches.toSorted(...)), not initialBeaches.`,
+          );
+          t.click(t.button('Original'));
+          order = beachOrder(t);
+          t.expect(
+            order === ORIGINAL_ORDER,
+            `Coral Cove was added to the starting chart, and now ↺ Original order shows ${order}: splice() inserted it into initialBeaches itself. Use [...beaches.slice(0, 1), coralCove, ...beaches.slice(1)].`,
+          );
         }),
       ],
       concepts: [
@@ -1484,12 +1500,12 @@ export default {
           );
         }),
         test('Only two pieces of state: islands and selectedId', (t) => {
-          const calls = (t.source.match(/useState\s*\(/g) || []).length;
+          const calls = (stripComments(t.source).match(/useState\s*\(/g) || []).length;
           t.expect(
             calls === 2,
             `Found ${calls} useState(...) calls — the map needs exactly two: islands and selectedId. The selected island and the total are calculated during render.`,
           );
-          t.sourceExcludes(/useState\(\s*initialIslands\s*\[\s*\d+\s*\]\s*\)/, "Don't put a copy of an island into state. Store its id instead: useState('turtle').");
+          t.expect(!/useState\(\s*initialIslands\s*\[\s*\d+\s*\]\s*\)/.test(stripComments(t.source)), "Don't put a copy of an island into state. Store its id instead: useState('turtle').");
           t.sourceIncludes(/\bselectedId\b/, 'Name the new state variable selectedId, as the task asks.');
         }),
       ],
@@ -1671,7 +1687,9 @@ export default {
         }
         \`\`\`
 
-        \`slice(0, -1)\` means "everything except the last item". The time-travel feature in
+        \`slice(0, -1)\` means "everything except the last item". Never drop the very first
+        version, or \`fleet\` would be \`undefined\`. That's why the Undo button is
+        \`disabled={history.length === 1}\`. The time-travel feature in
         React's official tic-tac-toe tutorial is built on this very idea.
 
         ## Push's trap
@@ -1930,6 +1948,11 @@ export default {
           t.click(t.$$('li.ship')[0].querySelector('.repair'));
           t.expect(!t.$$('li.ship')[0].classList.contains('damaged'), 'After repairing The Pure Function, its <li> should lose the "damaged" class.');
           t.expect(t.$$('li.ship')[2].classList.contains('damaged'), 'Repair should only fix the clicked ship: Old Splice is still damaged.');
+          const repaired = textOf(t, '.summary');
+          t.expect(
+            repaired === '3 ships · 1 damaged',
+            `After repairing The Pure Function the summary reads "${repaired}" — expected "3 ships · 1 damaged". Calculate damagedCount from the fleet during render: fleet.filter((s) => s.damaged).length.`,
+          );
           t.click('.undo');
           t.expect(
             t.$$('li.ship')[0].classList.contains('damaged'),
@@ -1968,8 +1991,15 @@ export default {
             `After ↶ Undo the order is still ${names.join(', ')}. sort() rearranged the older version in place! Use fleet.toSorted(...) instead.`,
           );
           t.expect(t.find('.undo').disabled, 'Back at the very first version, ↶ Undo should be disabled again.');
-          t.sourceExcludes(
-            /\bfleet\.(push|unshift|splice|pop|shift|sort|reverse)\s*\(/,
+          t.click('.launch');
+          t.click('.sort');
+          names = fleetNames(t);
+          t.expect(
+            names.join(' > ') === 'Spread Operator > The Pure Function > Old Splice > Rowboat 4',
+            `After ⛵ Launch and then 🏁 Fastest first, the fleet is: ${names.join(', ')}. Sort the CURRENT fleet (fleet.toSorted(...)), not initialFleet, so new ships stay in the race.`,
+          );
+          t.expect(
+            !/\bfleet\.(push|unshift|splice|pop|shift|sort|reverse)\s*\(/.test(stripComments(t.source)),
             'Some of Push\'s mutating calls are still in your code (fleet.push / splice / sort...). Replace every one of them with a new array.',
           );
         }),
@@ -1983,7 +2013,7 @@ export default {
           snippet: code`
             const [history, setHistory] = useState([initial]);
             const current = history[history.length - 1];
-            const undo = () => setHistory(history.slice(0, -1));
+            const undo = () => { if (history.length > 1) setHistory(history.slice(0, -1)); };
           `,
           detail: 'Mutations make all versions point at the same changed data, which silently rewrites the past.',
         },

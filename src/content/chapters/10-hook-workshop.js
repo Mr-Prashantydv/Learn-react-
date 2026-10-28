@@ -78,6 +78,9 @@ function attempt(action, advice) {
 
 const countMatches = (source, regex) => (source.match(regex) || []).length;
 
+/** Source with JS comments removed, so commented-out code doesn't count. */
+const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/.*$/gm, '$1');
+
 /** How many times `name(` is called, not counting a `function name(` definition. */
 const callSites = (source, name) =>
   countMatches(source.replace(new RegExp(`function\\s+${name}\\s*\\(`, 'g'), ''), new RegExp(`\\b${name}\\s*\\(`, 'g'));
@@ -760,9 +763,10 @@ export default {
           t.expect(lantern().endsWith('Lantern: dark'), `Toggling the bellows changed the lantern to "${lantern()}" — the two should be independent.`);
         }),
         test('Both devices use your useToggle hook', (t) => {
-          const uses = callSites(t.source, 'useToggle');
+          const src = stripComments(t.source);
+          const uses = callSites(src, 'useToggle');
           t.expect(uses >= 2, `useToggle is called ${uses} time(s) — expected one call in Lantern and one in Bellows.`);
-          const states = countMatches(t.source, /\buseState\s*\(/g);
+          const states = countMatches(src, /\buseState\s*\(/g);
           t.expect(
             states <= 1,
             `useState( appears ${states} times — after the refactor it should appear only once, inside useToggle. Replace the useState + toggle code in Lantern and Bellows with useToggle.`,
@@ -882,7 +886,9 @@ export default {
 
         :::pro
         Production versions wrap \`JSON.parse\` in \`try/catch\` (stored data might be broken)
-        and listen to the browser's \`storage\` event to stay in sync across tabs.
+        and listen to the browser's \`storage\` event to stay in sync across tabs. This simple
+        version also assumes \`key\` never changes; if it can, re-read storage when it does (or
+        remount the component with a different \`key\`).
         :::
 
         :::try
@@ -1158,6 +1164,9 @@ export default {
         :::tip
         Set \`loading\` back to \`true\` at the start of the effect. Otherwise, when the URL
         changes, the old data stays on screen with no hint that new data is on its way.
+        Heads-up: the newest \`eslint-plugin-react-hooks\` flags a \`setState\` called directly
+        in an effect body (\`react-hooks/set-state-in-effect\`). The pattern still works here; in
+        real apps, the data libraries below handle loading for you.
         :::
 
         :::pro
@@ -1181,7 +1190,7 @@ export default {
 
         - \`BlueprintBoard\` calls \`useFetch('/api/blueprints')\` (keep its **Loading blueprints…** text).
         - \`ToolRack\`'s copy-pasted effect is buggy: replace its \`tools\` state and effect with \`useFetch('/api/tools?shelf=' + shelf)\`.
-        - While loading, \`ToolRack\` shows \`<p className="loading">Loading tools…</p>\`; afterwards the \`<ul className="tools">\`.
+        - While useFetch's \`loading\` is \`true\` (also after switching shelves), \`ToolRack\` shows \`<p className="loading">Loading tools…</p>\`; afterwards the \`<ul className="tools">\`.
       `,
       starter: code`
         import { useState, useEffect } from 'react';
@@ -1418,7 +1427,7 @@ export default {
           );
         }),
         test('BlueprintBoard and ToolRack both use useFetch', async (t) => {
-          const calls = callSites(t.source, 'useFetch');
+          const calls = callSites(stripComments(t.source), 'useFetch');
           t.expect(calls >= 2, `useFetch is called ${calls} time(s) — expected one call in BlueprintBoard and one in ToolRack.`);
           t.render();
           t.expectText('Loading blueprints…', 'While loading, BlueprintBoard should show "Loading blueprints…".');
@@ -1435,7 +1444,7 @@ export default {
           t.click(t.button('Power tools'));
           t.expect(
             t.$('.toolrack .loading'),
-            'Right after clicking "Power tools" the rack should show "Loading tools…" again: useFetch sets loading back to true when the URL changes.',
+            'Right after clicking "Power tools" the rack should show <p className="loading">Loading tools…</p> again. In ToolRack, render on the loading value from useFetch (loading ? … : …), not on tools === null: the old tools stay in data while the new shelf loads.',
           );
           await t.tick(100);
           t.click(t.button('Hand tools'));
@@ -1728,7 +1737,7 @@ export default {
           const searches = t.fetchCalls.slice(before).map((call) => call.url);
           t.expect(
             searches.length === 1,
-            `Typing "gear" letter by letter sent ${searches.length} request(s)${searches.length ? ' (' + searches.join(', ') + ')' : ''}. With a 400 ms debounce it should send exactly 1. Use usePartSearch(query) in Catalogue.`,
+            `Typing "gear" letter by letter sent ${searches.length} request(s)${searches.length ? ' (' + searches.join(', ') + ')' : ''}. With a 400 ms debounce it should send exactly 1. Use usePartSearch(query) in Catalogue, and make sure useDebounce returns () => clearTimeout(id) from its effect so old timers are cancelled.`,
           );
           t.expect(/q=gear$/.test(searches[0]), `The search went to ${searches[0]} — expected /api/parts?q=gear.`);
         }),

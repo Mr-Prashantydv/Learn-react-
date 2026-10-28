@@ -504,7 +504,7 @@ export default {
       tests: [
         test('The clock counts up once per second', async (t) => {
           t.render();
-          await t.tick(3000);
+          await wait(t, 3000);
           const clock = clean(t.find('.clock').textContent);
           t.expect(
             clock === '3s',
@@ -513,16 +513,16 @@ export default {
         }),
         test('Pause stops the clock and Resume restarts it', async (t) => {
           t.render();
-          await t.tick(2000);
+          await wait(t, 2000);
           t.click(t.button('Pause'));
-          await t.tick(3000);
+          await wait(t, 3000);
           let clock = clean(t.find('.clock').textContent);
           t.expect(
             clock === '2s',
             `The clock kept running while paused: it shows "${clock}" instead of "2s". Skip the setup when running is false (if (!running) return;) and use [running] as the dependency array.`,
           );
           t.click(t.button('Resume'));
-          await t.tick(2000);
+          await wait(t, 2000);
           clock = clean(t.find('.clock').textContent);
           t.expect(
             clock === '4s',
@@ -532,7 +532,7 @@ export default {
         test('Escape anywhere on the page pauses and resumes', async (t) => {
           t.render();
           await t.tick(1000);
-          t.keyDown(document.body, 'Escape');
+          t.keyDown(document.body, 'Escape', { code: 'Escape', keyCode: 27 });
           await t.tick(2000);
           let clock = clean(t.find('.clock').textContent);
           t.expect(
@@ -541,7 +541,7 @@ export default {
           );
           const label = clean(t.find('button').textContent);
           t.expect(label.includes('Resume'), `While paused the button should read "Resume" (it reads "${label}").`);
-          t.keyDown(document.body, 'Escape');
+          t.keyDown(document.body, 'Escape', { code: 'Escape', keyCode: 27 });
           await t.tick(1000);
           clock = clean(t.find('.clock').textContent);
           t.expect(clock === '2s', `A second Escape should resume the clock: expected "2s" one second later, but it shows "${clock}".`);
@@ -573,7 +573,7 @@ export default {
             clock === '1s',
             `Under StrictMode (setup → cleanup → setup) the clock shows "${clock}" after 1 second — expected "1s". Two intervals are running because the first one was never cleared.`,
           );
-          t.keyDown(document.body, 'Escape');
+          t.keyDown(document.body, 'Escape', { code: 'Escape', keyCode: 27 });
           await t.tick(2000);
           clock = clean(t.find('.clock').textContent);
           t.expect(
@@ -662,6 +662,31 @@ export default {
         const [error, setError] = useState(null);
         \`\`\`
 
+        ## Promises and await in 60 seconds
+
+        \`fetch(url)\` doesn't hand you the answer right away: it returns a **promise**, a
+        value that arrives *later*. \`.then(fn)\` runs \`fn\` once that value arrives, as in
+        the effect above. Inside an \`async function\` you can write the same thing more
+        plainly: \`await\` pauses that function until the promise settles, then gives you its
+        value. \`res.json()\` is a promise too (the body is still downloading), so it needs
+        \`await\` as well. To handle failure, wrap the work in \`try\`: \`throw new Error('...')\`
+        (or a failed promise you awaited) jumps straight to the nearest \`catch\`, and
+        \`finally\` runs at the end whether it succeeded or failed:
+
+        \`\`\`js
+        async function load() {
+          try {
+            const res = await fetch(url); // wait for the response
+            const data = await res.json(); // wait for the body
+            setData(data);
+          } catch (err) {
+            setError(err.message); // something went wrong
+          } finally {
+            setLoading(false); // runs either way
+          }
+        }
+        \`\`\`
+
         ## fetch doesn't fail on 404 or 500
 
         \`fetch\` only rejects when the network itself fails. A **500** from the server is
@@ -675,9 +700,9 @@ export default {
 
         ## async inside an effect
 
-        The effect function itself can't be \`async\`: an async function returns a promise,
-        but React expects either nothing or a cleanup function. Declare an async function
-        **inside** the effect and call it.
+        The effect function itself can't be \`async\`: an async function always returns a
+        promise (see above), but React expects either nothing or a cleanup function. Declare
+        an async function **inside** the effect and call it.
 
         ## Race conditions and the ignore flag
 
@@ -716,9 +741,10 @@ export default {
         Stale answers still arrive, but they're simply ignored.
 
         :::pro
-        Real apps often let a framework or a library (like TanStack Query) fetch data, or use
-        React 19's \`use()\` with Suspense (see you in the Arcane Spire). They add caching and
-        avoid request waterfalls, but the ideas are the same. You can also cancel requests
+        Real apps usually let a framework or a library (like TanStack Query) fetch and cache
+        data. Those tools add caching and avoid request waterfalls, and they can hand React 19's
+        \`use()\` a cached promise to read with Suspense (see you in the Arcane Spire). The ideas
+        are the same. You can also cancel requests
         with an \`AbortController\`; in Reactoria, use the \`ignore\` flag.
         :::
       `,
@@ -877,7 +903,8 @@ export default {
             t.fetchCalls.some((c) => param(c.url, 'name') === 'cinder'),
             `Choosing Cinder Cone didn't send a new request (requests so far: ${urls(t)}). The effect reads volcano, so volcano belongs in the dependency array.`,
           );
-          t.expect(t.$('.loading') && !t.$('.report'), 'While the new report loads, show only the loading message (reset report to null when a request starts).');
+          t.expect(t.$('.loading'), 'While Cinder Cone loads, show the loading message: call setLoading(true) at the start of every request, not only the first one.');
+          t.expect(!t.$('.report'), 'While the new report loads, hide the old one: setReport(null) when a request starts.');
           await wait(t, 350);
           const name = clean(t.$('.report h3')?.textContent);
           t.expect(name === 'Cinder Cone', `The report shows "${name || 'nothing'}" — expected "Cinder Cone".`);
@@ -990,8 +1017,9 @@ export default {
 
         Every answer sets state, the new render runs the effect again, which fetches again...
         forever: the Infinite Looper's favourite trick. (The synchronous version,
-        \`useEffect(() => setCount(count + 1))\`, loops so fast that React stops it with
-        "Maximum update depth exceeded".)
+        \`useEffect(() => setCount(count + 1))\`, loops even faster. In development React fills
+        the console with "Maximum update depth exceeded" warnings, but it does not stop the loop:
+        the app keeps re-rendering and burning CPU.)
 
         ### 2. A missing dependency: the effect goes stale
 
@@ -1176,7 +1204,7 @@ export default {
         }),
         test('Uptime counts 1s, 2s, 3s…', async (t) => {
           t.render();
-          await t.tick(3000);
+          await wait(t, 3000);
           const uptime = clean(t.find('.uptime').textContent);
           t.expect(
             uptime === 'Monitor uptime: 3s',
@@ -1565,7 +1593,7 @@ export default {
             'An infinite loop: each update re-renders, and every render runs the effect again',
           ],
           3,
-          'The effect sets state, the state change re-renders, and with no dependency array every render runs the effect again. React stops it with "Maximum update depth exceeded". Ask whether this needs an effect at all!',
+          'The effect sets state, the state change re-renders, and with no dependency array every render runs the effect again. In development React warns "Maximum update depth exceeded" in the console, but the loop keeps going. Ask whether this needs an effect at all!',
         ),
         q(
           '`roomId` changes from `"lava"` to `"ash"`. In which order does React run things?\n\n```jsx\nuseEffect(() => {\n  const conn = connect(roomId);\n  return () => conn.disconnect();\n}, [roomId]);\n```',

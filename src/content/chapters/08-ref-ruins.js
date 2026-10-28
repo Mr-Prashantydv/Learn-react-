@@ -47,6 +47,23 @@ function withScrollSpy(t, fn) {
   }
 }
 
+/**
+ * Runs `fn()` while document-wide lookups find nothing, as in the live preview
+ * (a Shadow DOM hides the player's elements from `document`).
+ */
+function withoutDocumentLookups(t, fn) {
+  const doc = t.container.ownerDocument;
+  const empty = { querySelector: null, getElementById: null, querySelectorAll: [], getElementsByClassName: [], getElementsByTagName: [], getElementsByName: [] };
+  for (const [name, value] of Object.entries(empty)) doc[name] = () => value;
+  try {
+    return fn();
+  } finally {
+    for (const name of Object.keys(empty)) delete doc[name];
+  }
+}
+
+const VIA_REF = "Reach the element through its ref — document.querySelector can't see inside the game preview.";
+
 /** Finds a <button> containing `label` inside `scope`. */
 function buttonIn(scope, label) {
   const btn = Array.from(scope.querySelectorAll('button')).find((b) => norm(b.textContent).toLowerCase().includes(label.toLowerCase()));
@@ -104,7 +121,8 @@ export default {
 
         \`useRef(initialValue)\` returns a plain object with one property, \`current\`.
         React hands you **the very same object on every render**, so whatever you store in
-        \`current\` is still there next time. You can read and change it whenever you like.
+        \`current\` is still there next time. You can read and change it freely in event handlers and
+        effects (just not while rendering — more on that below).
 
         ## Refs vs local variables vs state
 
@@ -805,39 +823,45 @@ export default {
         }),
         test('📜 Last line scrolls the final inscription into view', (t) => {
           const from = t.warnings.length;
-          withScrollSpy(t, (calls) => {
-            t.render();
-            const final = t.find('li.final');
-            t.click(t.button('Last line'));
-            t.expect(
-              calls.length > 0,
-              `Nothing was scrolled.${crashNote(t, from)} Attach ref={finalRef} to <li className="final"> and call finalRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) in handleLastLine.`,
-            );
-            const target = calls[calls.length - 1].el;
-            t.expect(target === final, `scrollIntoView was called on ${describe(target)} — attach the ref to <li className="final"> instead.`);
+          withoutDocumentLookups(t, () => {
+            withScrollSpy(t, (calls) => {
+              t.render();
+              const final = t.find('li.final');
+              t.click(t.button('Last line'));
+              t.expect(
+                calls.length > 0,
+                `Nothing was scrolled.${crashNote(t, from)} Attach ref={finalRef} to <li className="final"> and call finalRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) in handleLastLine. ${VIA_REF}`,
+              );
+              const target = calls[calls.length - 1].el;
+              t.expect(target === final, `scrollIntoView was called on ${describe(target)} — attach the ref to <li className="final"> instead.`);
+            });
           });
         }),
         test('✨ Select spell highlights all of the spell text', (t) => {
           const from = t.warnings.length;
-          t.render();
-          const input = t.find('input.spell');
-          t.click(t.button('Select spell'));
-          const len = input.value.length;
-          t.expect(
-            input.selectionStart === 0 && input.selectionEnd === len && len > 0,
-            `The selection covers characters ${input.selectionStart}–${input.selectionEnd} — expected 0–${len} (all of it).${crashNote(t, from)} Attach ref={spellRef} to the spell input and call spellRef.current.select().`,
-          );
+          withoutDocumentLookups(t, () => {
+            t.render();
+            const input = t.find('input.spell');
+            t.click(t.button('Select spell'));
+            const len = input.value.length;
+            t.expect(
+              input.selectionStart === 0 && input.selectionEnd === len && len > 0,
+              `The selection covers characters ${input.selectionStart}–${input.selectionEnd} — expected 0–${len} (all of it).${crashNote(t, from)} Attach ref={spellRef} to the spell input and call spellRef.current.select(). ${VIA_REF}`,
+            );
+          });
         }),
         test('✍️ Take notes puts the cursor in the notes box', (t) => {
           const from = t.warnings.length;
-          t.render();
-          const notes = t.find('textarea.notes');
-          t.click(t.button('Take notes'));
-          const active = focused(t);
-          t.expect(
-            active === notes,
-            `After clicking Take notes, the focus is on ${describe(active)} — expected the notes <textarea>.${crashNote(t, from)} Attach ref={notesRef} and call notesRef.current.focus().`,
-          );
+          withoutDocumentLookups(t, () => {
+            t.render();
+            const notes = t.find('textarea.notes');
+            t.click(t.button('Take notes'));
+            const active = focused(t);
+            t.expect(
+              active === notes,
+              `After clicking Take notes, the focus is on ${describe(active)} — expected the notes <textarea>.${crashNote(t, from)} Attach ref={notesRef} and call notesRef.current.focus(). ${VIA_REF}`,
+            );
+          });
         }),
       ],
       css: `
@@ -916,7 +940,8 @@ export default {
         \`\`\`
 
         Now \`sunRef.current\` in the parent is the real \`<input>\` inside \`RuneSlot\`. The child
-        decides **which** node to expose; the parent can't reach anything else inside it.
+        decides **which** node to expose — though once the parent has a DOM node, it can do anything
+        with it. The next level shows how to hand over only a few chosen methods instead.
 
         ## Recognising forwardRef (legacy)
 
@@ -1088,32 +1113,36 @@ export default {
         }),
         test('🗝️ Wake the statue focuses the Sun slot', (t) => {
           const from = t.warnings.length;
-          t.render();
-          const [sun] = t.$$('input.rune-input');
-          t.click(t.button('Wake'));
-          const active = focused(t);
-          t.expect(
-            active === sun,
-            `After clicking Wake, the focus is on ${describe(active)} — expected the Sun input.${crashNote(t, from)} RuneSlot must attach its ref prop (<input ref={ref} ... />), and handleWake calls sunRef.current.focus().`,
-          );
+          withoutDocumentLookups(t, () => {
+            t.render();
+            const [sun] = t.$$('input.rune-input');
+            t.click(t.button('Wake'));
+            const active = focused(t);
+            t.expect(
+              active === sun,
+              `After clicking Wake, the focus is on ${describe(active)} — expected the Sun input.${crashNote(t, from)} RuneSlot must attach its ref prop (<input ref={ref} ... />), and handleWake calls sunRef.current.focus(). ${VIA_REF}`,
+            );
+          });
         }),
         test('Typing a rune hops to the next slot (Sun → Moon → Star)', (t) => {
           const from = t.warnings.length;
-          t.render();
-          const [sun, moon, star] = t.$$('input.rune-input');
-          t.focus(sun);
-          t.type(sun, 'R');
-          const afterSun = focused(t);
-          t.expect(
-            afterSun === moon,
-            `After typing into Sun, the focus is on ${afterSun === sun ? 'the Sun slot still' : describe(afterSun)} — expected the Moon slot.${crashNote(t, from)} In handleSunChange: if (e.target.value.length === 1) moonRef.current.focus();`,
-          );
-          t.type(moon, 'E');
-          const afterMoon = focused(t);
-          t.expect(
-            afterMoon === star,
-            `After typing into Moon, the focus is on ${afterMoon === moon ? 'the Moon slot still' : describe(afterMoon)} — expected the Star slot.${crashNote(t, from)} In handleMoonChange: if (e.target.value.length === 1) starRef.current.focus();`,
-          );
+          withoutDocumentLookups(t, () => {
+            t.render();
+            const [sun, moon, star] = t.$$('input.rune-input');
+            t.focus(sun);
+            t.type(sun, 'R');
+            const afterSun = focused(t);
+            t.expect(
+              afterSun === moon,
+              `After typing into Sun, the focus is on ${afterSun === sun ? 'the Sun slot still' : describe(afterSun)} — expected the Moon slot.${crashNote(t, from)} In handleSunChange: if (e.target.value.length === 1) moonRef.current.focus(); ${VIA_REF}`,
+            );
+            t.type(moon, 'E');
+            const afterMoon = focused(t);
+            t.expect(
+              afterMoon === star,
+              `After typing into Moon, the focus is on ${afterMoon === moon ? 'the Moon slot still' : describe(afterMoon)} — expected the Star slot.${crashNote(t, from)} In handleMoonChange: if (e.target.value.length === 1) starRef.current.focus(); ${VIA_REF}`,
+            );
+          });
         }),
       ],
       css: `
@@ -1563,16 +1592,21 @@ export default {
         ## Cleaning up when the component disappears
 
         Remember the Effect Volcano: an effect's cleanup runs when the component unmounts.
-        With an empty dependency array, the effect sets up once and cleans up once:
+        With an empty dependency array, the cleanup runs when the component unmounts (plus one
+        extra setup → cleanup round on mount in development under StrictMode, as you saw in the Volcano):
 
         \`\`\`jsx
         useEffect(() => {
-          return () => clearInterval(intervalRef.current);
+          return () => {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          };
         }, []);
         \`\`\`
 
         Reading \`intervalRef.current\` inside the cleanup gives you whichever interval is running
-        **at that moment** — exactly the ghost you want to banish.
+        **at that moment** — exactly the ghost you want to banish. Setting it back to \`null\` leaves
+        the stopwatch exactly as Stop does, so Start still works if React ever sets the effect up again.
 
         ## Store raw numbers, derive the text
 
@@ -1598,7 +1632,7 @@ export default {
         1. **▶ Start** starts a \`setInterval\` that adds one tenth every **100 ms** (so the time reads **1.5** after 1.5 s). Keep the interval id in a **ref**. Pressing Start while it's running must **not** start a second interval. (Don't disable the button — guard with the ref.)
         2. **⏸ Stop** clears the interval. Pressing Start again continues from the same time.
         3. **🏁 Lap** appends the current \`tenths\` to the \`laps\` state, so the list shows **Lap 1: 1.5**, **Lap 2: 3.0**, ...
-        4. **↺ Reset** stops the timer, sets the time back to **0.0**, clears the laps and **focuses the ▶ Start button** (attach a DOM ref to it).
+        4. **↺ Reset** stops the timer, sets the time back to **0.0**, clears the laps and **focuses the ▶ Start button** (attach a DOM ref to it). Afterwards, ▶ Start works again.
         5. If the stopwatch unmounts while running, its interval must be cleared — add a cleanup effect.
       `,
       starter: code`
@@ -1679,7 +1713,10 @@ export default {
           }
 
           useEffect(() => {
-            return () => clearInterval(intervalRef.current);
+            return () => {
+              clearInterval(intervalRef.current);
+              intervalRef.current = null;
+            };
           }, []);
 
           return (
@@ -1704,7 +1741,7 @@ export default {
       hints: [
         md`Two refs: \`const intervalRef = useRef(null);\` for the timer and \`const startRef = useRef(null);\` attached with \`<button ref={startRef} ...>\`.`,
         md`Start: \`if (intervalRef.current !== null) return;\` then \`intervalRef.current = setInterval(() => setTenths((t) => t + 1), 100);\`. Stop: clear it **and** set \`intervalRef.current = null\`.`,
-        md`Lap: \`setLaps([...laps, tenths])\`. Reset: \`handleStop(); setTenths(0); setLaps([]); startRef.current.focus();\`. Cleanup: \`useEffect(() => () => clearInterval(intervalRef.current), []);\``,
+        md`Lap: \`setLaps([...laps, tenths])\`. Reset: \`handleStop(); setTenths(0); setLaps([]); startRef.current.focus();\`. Cleanup: \`useEffect(() => () => { clearInterval(intervalRef.current); intervalRef.current = null; }, []);\``,
       ],
       tests: [
         test('The Chronolith shows 0.0, four buttons and the lap list', (t) => {
@@ -1750,7 +1787,7 @@ export default {
             `The laps read ${laps.map((l) => `"${l}"`).join(' and ')} — expected "Lap 1: 1.5" and "Lap 2: 3.0".`,
           );
         }),
-        test('↺ Reset zeroes everything and focuses ▶ Start', async (t) => {
+        test('↺ Reset zeroes everything, focuses ▶ Start, and Start works again', async (t) => {
           const from = t.warnings.length;
           t.render();
           t.click(t.button('Start'));
@@ -1770,6 +1807,13 @@ export default {
           await t.tick(1000);
           const still = norm(t.find('.time').textContent);
           t.expect(still === '0.0', `1 s after Reset the time reads "${still}" — the clock should stay stopped at "0.0".`);
+          t.click(t.button('Start'));
+          await t.tick(500);
+          const again = norm(t.find('.time').textContent);
+          t.expect(
+            again === '0.5',
+            `Reset → ▶ Start → 0.5 s reads "${again}" — expected "0.5". Start must work again after Reset: Reset should stop the timer with handleStop(), which also sets intervalRef.current = null.`,
+          );
         }),
         test('No ghost intervals: double Start and unmounting leave none behind', async (t) => {
           t.render();
@@ -1789,7 +1833,7 @@ export default {
           t.unmount();
           t.expect(
             t.timers.pendingIntervals() === 0,
-            'The Phantom kept an interval alive after the stopwatch unmounted. Add useEffect(() => () => clearInterval(intervalRef.current), []).',
+            'The Phantom kept an interval alive after the stopwatch unmounted. Add useEffect(() => () => { clearInterval(intervalRef.current); intervalRef.current = null; }, []).',
           );
         }),
       ],
@@ -1814,7 +1858,7 @@ export default {
               intervalRef.current = setInterval(() => setTenths((t) => t + 1), 100);
             }
 
-            useEffect(() => () => clearInterval(intervalRef.current), []);
+            useEffect(() => () => { clearInterval(intervalRef.current); intervalRef.current = null; }, []);
           `,
         },
       ],

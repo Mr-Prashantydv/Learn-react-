@@ -94,6 +94,9 @@ function wyrmCulprits(source) {
   const list = [];
   if (!/\bmemo\s*\(/.test(source)) list.push('Hoard is not wrapped in memo');
   if (!/\buseMemo\s*\(/.test(source)) list.push('items is a new array on every render (useMemo)');
+  if (/useMemo\(\s*\(\)\s*=>[^;]*,\s*\[[^\]]*\bfound\b[^\]]*\]\s*\)/.test(source)) {
+    list.push('items depends on found, a new array every render (filter inside useMemo and depend on [query, sortBy])');
+  }
   if (/labels=\{\{/.test(source)) list.push('labels is a new object on every render (move it into a constant)');
   if (/onClaim=\{\s*\(/.test(source)) list.push('onClaim is a new function on every render (useCallback)');
   return list.length ? ` Still waking him: ${list.join('; ')}.` : '';
@@ -318,6 +321,11 @@ export default {
         test('The note state lives in a SummitLog component', (t) => {
           t.sourceIncludes(/function\s+SummitLog\s*\(|(?:const|let)\s+SummitLog\s*=/, 'Create a component named SummitLog: function SummitLog() { ... }');
           t.sourceIncludes(/<SummitLog\b/, 'Render <SummitLog /> inside App.');
+          t.sourceExcludes(
+            /function\s+App\s*\([^)]*\)\s*\{(?:(?!\n\})[\s\S])*?\buseState\s*\(/,
+            "App should hold no state any more: move const [note, setNote] = useState('') into SummitLog.",
+          );
+          t.sourceExcludes(/<SummitLog\b[^>]*\b(?:note|setNote)\s*=/, 'SummitLog should own the note state itself instead of receiving it as props.');
           t.render();
           const peaks = t.count('.mountain li');
           t.expect(peaks === 4, `The mountain shows ${peaks} peak(s) — keep the Mountain with all 4 peaks.`);
@@ -938,7 +946,7 @@ export default {
         time until a dependency changes:
 
         \`\`\`jsx
-        const visible = useMemo(() => items.filter((item) => item.level === level), [level]);
+        const visible = useMemo(() => items.filter((item) => item.level === level), [items, level]);
         \`\`\`
 
         **3. \`useCallback\` for functions.** It returns the *same* function until a dependency
@@ -1190,7 +1198,9 @@ export default {
         moment: re-rendering a huge list, opening a heavy tab. React lets you mark the second
         kind as **non-urgent**. React then renders it **in the background**, and if something
         urgent happens meanwhile (another keystroke), it pauses or throws away that background
-        work and handles the urgent update first. The page never freezes.
+        work and handles the urgent update first. React pauses between components, so the page
+        stays responsive even while a big tree re-renders (though a single very slow component
+        can still block it).
 
         | Hook | You control... | Use it when |
         |---|---|---|
@@ -1891,6 +1901,21 @@ export default {
             `The Hoard rendered ${renders} time(s) for the first render, one claim and one heartbeat — expected 2.${wyrmCulprits(t.source)}`,
           );
         }),
+        test('Claiming two treasures keeps both', (t) => {
+          t.render();
+          for (const name of ['Ruby ring', 'Golden crown']) {
+            const li = t.$$('.hoard li').find((el) => el.textContent.includes(name));
+            t.expect(li, `Could not find the ${name} in the hoard.`);
+            t.click(li.querySelector('button'));
+          }
+          const loot = norm(t.find('.loot').textContent);
+          t.expect(
+            loot === 'Claimed: 2',
+            `After claiming two treasures the counter reads "${loot}" — expected "Claimed: 2". Your memoised onClaim still sees the old claimed array: use the updater form setClaimed((c) => [...c, id]).`,
+          );
+          const claimedCount = t.$$('.hoard li.claimed').length;
+          t.expect(claimedCount === 2, `After claiming the Ruby ring and the Golden crown, ${claimedCount} <li> have the class "claimed" — expected 2.`);
+        }),
         test('Sorting by value works', (t) => {
           t.render();
           t.change('select.sort', 'value');
@@ -1922,9 +1947,12 @@ export default {
           title: 'The optimisation checklist',
           summary: 'Measure, move state down, memo, stabilise props, useMemo, then transitions.',
           snippet: code`
-            const items = useMemo(() => sortTreasure(found, sortBy), [found, sortBy]);
+            const items = useMemo(
+              () => sortTreasure(TREASURE.filter((t) => t.name.toLowerCase().includes(query.toLowerCase())), sortBy),
+              [query, sortBy],
+            );
             const onClaim = useCallback((id) => setClaimed((c) => [...c, id]), []);
-            <Hoard items={items} labels={LABELS} onClaim={onClaim} />
+            <Hoard items={items} claimed={claimed} labels={LABELS} onClaim={onClaim} />
           `,
           detail: 'Each step is cheaper and simpler than the next, so stop as soon as the measurements say it is fast enough.',
         },

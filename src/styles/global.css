@@ -664,6 +664,9 @@ button.link {
   padding: 20px;
   animation: fadeIn 0.2s ease both;
 }
+.modal:focus {
+  outline: none;
+}
 .modal {
   width: min(520px, 100%);
   max-height: calc(100vh - 40px);
@@ -1462,12 +1465,15 @@ button.link {
 .panel-right {
   display: grid;
   grid-template-rows: minmax(0, 1.15fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 0;
+  min-width: 0;
 }
 .editor-wrap {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
   border-bottom: 2px solid var(--line);
 }
 .editor-bar,
@@ -1498,6 +1504,7 @@ button.link {
 .editor-host {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   overflow: auto;
   background: #0d1526;
 }
@@ -2317,6 +2324,14 @@ button.link {
     gap: 6px;
     font-size: 12px;
   }
+  .editor-bar,
+  .preview-bar,
+  .editor-actions {
+    flex-wrap: wrap;
+  }
+  .editor-actions {
+    row-gap: 4px;
+  }
 }
 
 body.reduced-motion *,
@@ -2335,6 +2350,23 @@ body.reduced-motion *::after {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* ---------- crash screen ---------- */
+.crash-screen {
+  max-width: 520px;
+  margin: 12vh auto;
+  padding: 28px 24px;
+  background: var(--bg-2);
+  border: 2px solid var(--line);
+  border-radius: 18px;
+  position: relative;
+}
+.crash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
 }
 
 /* ---------- boss bar ---------- */

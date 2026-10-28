@@ -96,9 +96,39 @@ export function createSandbox({ level = {}, mode = 'preview', onLog } = {}) {
     error: (...a) => log('error', a),
     debug: (...a) => log('log', a),
     table: (...a) => log('log', a),
+    dir: (...a) => log('log', a),
+    trace: (...a) => log('log', a),
     group: () => {},
+    groupCollapsed: () => {},
     groupEnd: () => {},
+    time: (label = 'default') => {
+      timeLabels.set(String(label), timers.now());
+    },
+    timeLog: (label = 'default', ...rest) => {
+      const start = timeLabels.get(String(label));
+      if (start === undefined) log('warn', [`Timer '${label}' does not exist`]);
+      else log('log', [`${label}: ${timers.now() - start}ms`, ...rest]);
+    },
+    timeEnd: (label = 'default') => {
+      const start = timeLabels.get(String(label));
+      if (start === undefined) log('warn', [`Timer '${label}' does not exist`]);
+      else log('log', [`${label}: ${timers.now() - start}ms`]);
+      timeLabels.delete(String(label));
+    },
+    count: (label = 'default') => {
+      const n = (counts.get(String(label)) || 0) + 1;
+      counts.set(String(label), n);
+      log('log', [`${label}: ${n}`]);
+    },
+    countReset: (label = 'default') => {
+      counts.delete(String(label));
+    },
+    assert: (cond, ...a) => {
+      if (!cond) log('error', ['Assertion failed:', ...a]);
+    },
   };
+  const timeLabels = new Map();
+  const counts = new Map();
   const fetchDelay = mode === 'test' ? level.fetchDelay ?? 300 : level.fetchDelay ?? 700;
   const fetch = createFakeFetch(level.routes || {}, timers, fetchDelay);
   const modules = {
@@ -336,6 +366,7 @@ export async function runQuestTests(level, source, { onProgress } = {}) {
   const tests = level.tests || [];
 
   if (evaluated.error) {
+    sandbox.timers.reset();
     return {
       error: evaluated.error,
       results: tests.map((t) => ({ name: t.name, pass: false, message: 'Fix the error above first.' })),
@@ -390,6 +421,7 @@ export async function runQuestTests(level, source, { onProgress } = {}) {
       if (!pass && test.blocking) break;
     }
   } finally {
+    sandbox.timers.reset();
     silence.restore();
     globalThis.IS_REACT_ACT_ENVIRONMENT = prevActEnv;
     if (typeof document !== 'undefined') document.title = prevTitle;

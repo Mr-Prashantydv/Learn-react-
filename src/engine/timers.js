@@ -52,7 +52,8 @@ export function createFakeTimers() {
       now = 0;
     },
   };
-  liveRealTimers.add(timers);
+  // Fake timers only advance through ctx.tick, so they are never tracked in
+  // liveRealTimers: waiting real time can never drain them.
   return timers;
 }
 

@@ -62,8 +62,16 @@ export function Dialog({ lines, onDone, speaker = 'Pip', compact = false }) {
 
   const advanceRef = useRef(advance);
   advanceRef.current = advance;
+  const rootRef = useRef(null);
+  const nextRef = useRef(null);
+  useEffect(() => {
+    nextRef.current?.focus({ preventScroll: true });
+  }, []);
   useEffect(() => {
     const onKey = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // Let other focused controls (HUD buttons, map nodes...) handle their own keys.
+      if (e.target !== document.body && !rootRef.current?.contains(e.target)) return;
       const tag = e.target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
       if (e.key === 'Enter' || e.key === ' ') {
@@ -78,7 +86,7 @@ export function Dialog({ lines, onDone, speaker = 'Pip', compact = false }) {
   if (!items.length) return null;
 
   return (
-    <div className={`dialog ${compact ? 'dialog-compact' : ''}`} role="dialog" aria-live="polite">
+    <div ref={rootRef} className={`dialog ${compact ? 'dialog-compact' : ''}`} role="dialog" aria-live="polite">
       <div className="dialog-portrait">
         <PipSprite size={compact ? 44 : 64} mood={current.mood} />
         <div className="dialog-speaker">{speaker}</div>
@@ -98,6 +106,7 @@ export function Dialog({ lines, onDone, speaker = 'Pip', compact = false }) {
             </button>
           )}
           <button
+            ref={nextRef}
             className={`btn btn-small ${index + 1 < items.length ? '' : 'btn-primary'}`}
             onClick={(e) => {
               e.stopPropagation();

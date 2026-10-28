@@ -225,7 +225,7 @@ export default {
         - \`PartyPanel\` reads the heroes from \`PartyContext\`.
         - Each \`HeroCard\`'s **Use potion** button dispatches \`{ type: 'potion_used', heroId: hero.id }\`.
         - The exported \`Pack\` shows **Potions: N** in \`<p className="potions">\`, and its **Search for potions** button dispatches \`{ type: 'potion_found' }\`.
-        - The exported \`Gate\` shows **🔓 The gate is open!** when every hero's \`hp\` equals their \`maxHp\`, otherwise **🔒 The gate is sealed.** Derive it, don't store it.
+        - The exported \`Gate\` shows, in \`<p className="gate">\`, **🔓 The gate is open!** when every hero's \`hp\` equals their \`maxHp\`, otherwise **🔒 The gate is sealed.** Derive it, don't store it.
       `,
       css: `
         .gate { display: inline-block; padding: 8px 14px; border-radius: 12px; font-weight: 700; background: #2b2140; color: #f3e8ff; }
@@ -459,6 +459,7 @@ export default {
           t.expect(linus && norm(linus.querySelector('.hp')?.textContent) === 'HP 75/100', 'Linus\'s card should show "HP 75/100" in its <p className="hp">.');
           const potions = norm(t.$('.potions')?.textContent);
           t.expect(potions === 'Potions: 1', `The pack reads "${potions || 'nothing'}" — expected "Potions: 1" in <p className="potions">.`);
+          t.expect(t.$('.gate'), 'Could not find the gate — keep <p className="gate"> from the starter in Gate.');
           const gate = norm(t.$('.gate')?.textContent);
           t.expect(gate.includes('sealed'), `The gate reads "${gate || 'nothing'}" — with a hurt party it should say "🔒 The gate is sealed."`);
         }),
@@ -514,6 +515,7 @@ export default {
         }),
         test('The gate opens only when the whole party is at full HP', (t) => {
           t.render();
+          t.expect(t.$('.gate'), 'Could not find the gate — keep <p className="gate"> from the starter in Gate.');
           const gate = () => norm(t.$('.gate')?.textContent);
           const use = (name) => t.click(findByText(t, '.hero', name).querySelector('button'));
           t.click(t.button('Search for potions'));
@@ -551,6 +553,7 @@ export default {
             }
           };
           renderIn(provide(t, PartyContext, party(60), t.h(Gate)), '<Gate /> inside <PartyContext value={party}>');
+          t.expect(t.$('.gate'), 'Could not find the gate — keep <p className="gate"> from the starter in Gate.');
           let text = norm(t.$('.gate')?.textContent);
           t.expect(
             text.includes('open'),
@@ -1838,6 +1841,7 @@ export default {
           t.render();
           const heading = () => norm(t.$('.logbook h2')?.textContent);
           t.expect(heading() === 'Logbook: Vega 1', `The logbook heading reads "${heading() || 'nothing'}" — expected "Logbook: Vega 1" for the first selected star.`);
+          const before = t.find('.logbook textarea');
           t.type('.logbook textarea', 'A blue giant, very bright');
           const rigel = findByText(t, 'li.star', 'Rigel 1');
           t.click(rigel.querySelector('button.name'));
@@ -1847,6 +1851,10 @@ export default {
           t.expect(
             notes === '',
             `The logbook for Rigel 1 still contains "${notes}" — the notes leaked from Vega 1. React kept Logbook's state because it sits in the same place. Give it a key: <Logbook key={selectedId} star={selected} />.`,
+          );
+          t.expect(
+            t.find('.logbook textarea') !== before,
+            'The logbook kept its old <textarea> — its state was reset by hand instead of remounting it. Give Logbook a key so React builds a fresh one: <Logbook key={selectedId} star={selected} />.',
           );
         }),
       ],
@@ -2001,8 +2009,8 @@ export default {
         ),
         q(
           md`
-            \`ThemeToggle\` and \`Sidebar\` each call
-            \`const [theme, setTheme] = useLocalStorage('theme', 'dark')\` — the same custom hook with the same key.
+            \`ThemeToggle\` and \`Sidebar\` each call the \`useLocalStorage\` you built in the Hook Workshop
+            (a \`useState\` plus an effect that saves) — \`const [theme, setTheme] = useLocalStorage('theme', 'dark')\`, with the same key.
             \`ThemeToggle\` calls \`setTheme('light')\`. What happens to \`Sidebar\`?
           `,
           [
@@ -2012,7 +2020,7 @@ export default {
             'It stays dark: each call to the hook has its own state',
           ],
           3,
-          md`Custom hooks share **logic**, not state. Each call runs its own \`useState\` inside, so \`Sidebar\` never hears about the change (it would only read "light" from storage after re-mounting). To share live state, lift it up to a common parent or put it in context.`,
+          md`Custom hooks share **logic**, not state. Each call runs its own \`useState\` inside, so \`Sidebar\` never hears about the change (it would only read "light" from storage after re-mounting). To share live state, lift it up to a common parent or put it in context. (A hook can share live state only if it subscribes to a shared store, e.g. with \`useSyncExternalStore\`.)`,
         ),
         q(
           md`
@@ -2173,8 +2181,10 @@ export default {
           let ignore = false;
           // fetch ... then: if (!ignore) dispatch({ type: 'loaded', ... })
           return () => { ignore = true; };
-        }, [loading]);
+        }, [loading, dispatch]);
         \`\`\`
+
+        (\`dispatch\` never changes, but list it anyway — the linter can't see that through a custom hook.)
 
         Depending on \`loading\` means the effect runs again whenever the state goes back to \`null\` — which is how a
         **Reset** button can summon fresh data.
@@ -2532,7 +2542,7 @@ export default {
                 if (!ignore) dispatch({ type: 'loaded', quests: data });
               });
             return () => { ignore = true; };
-          }, [loading]);
+          }, [loading, dispatch]);
           \`\`\`
 
           Derived values: \`const doneCount = quests.filter((q) => q.done).length;\` and \`visible\` picks \`quests.filter((q) => !q.done)\` for \`'active'\`, \`quests.filter((q) => q.done)\` for \`'done'\`, or all of \`quests\`. Tabs: \`className={filter === f.id ? 'active' : ''}\` and \`onClick={() => setFilter(f.id)}\`.

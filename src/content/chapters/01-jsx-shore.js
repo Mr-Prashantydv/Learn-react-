@@ -200,7 +200,11 @@ export default {
         - math — \`{gold * 2}\`
         - property access — \`{hero.level}\`
         - function calls — \`{format(price)}\`, \`{name.toUpperCase()}\`
-        - template literals — \`{\`Level \${hero.level}\`}\`
+        - template literals, inside the braces:
+
+          \`\`\`jsx
+          <p>{\`Level \${hero.level}\`}</p>
+          \`\`\`
 
         ## Expressions, not statements
 
@@ -219,7 +223,7 @@ export default {
         :::
 
         :::tip
-        Text and braces mix freely: \`<p>Level {hero.level} hero</p>\`. Spaces in your JSX text are kept, so \`Level {x}\` renders as "Level 7".
+        Text and braces mix freely: \`<p>Level {hero.level} hero</p>\`. Spaces in your JSX text are kept, so \`Level {x}\` renders as "Level 7". Careful: whitespace that contains a line break is removed, so if you put two braces on separate lines, add an explicit \`{' '}\` between them.
         :::
       `,
       task: md`
@@ -281,21 +285,25 @@ export default {
         test('The heading reads "Ada the Brave" using hero.name and hero.title', (t) => {
           t.render();
           const text = t.find('h2').textContent.replace(/\s+/g, ' ').trim();
-          t.expect(text === 'Ada the Brave', `The <h2> reads "${text}" — expected "Ada the Brave".`);
-          t.sourceIncludes(/\{\s*hero\.name\s*\}/, 'Use {hero.name} instead of typing the name by hand.');
-          t.sourceIncludes(/\{\s*hero\.title\s*\}/, 'Use {hero.title} instead of typing the title by hand.');
+          t.expect(
+            text === 'Ada the Brave',
+            `The <h2> reads "${text}" — expected "Ada the Brave".` +
+              (text === 'Adathe Brave' ? " (JSX drops line breaks between braces. Keep them on one line or add {' '}.)" : ''),
+          );
+          t.sourceIncludes(/\{[^}]*hero\.name/, 'Read the name from hero.name inside braces instead of typing it by hand.');
+          t.sourceIncludes(/\{[^}]*hero\.title/, 'Read the title from hero.title inside braces instead of typing it by hand.');
         }),
         test('The level line reads "Level 7" using hero.level', (t) => {
           t.render();
           const text = t.find('.level').textContent.replace(/\s+/g, ' ').trim();
           t.expect(text === 'Level 7', `The .level paragraph reads "${text}" — expected "Level 7".`);
-          t.sourceIncludes(/\{\s*hero\.level\s*\}/, 'Read the level from {hero.level}.');
+          t.sourceIncludes(/\{[^}]*hero\.level/, 'Read the level from hero.level inside braces, e.g. {hero.level}.');
         }),
         test('The loot line shows the doubled potions: "Potions: 6"', (t) => {
           t.render();
           const text = t.find('.loot').textContent.replace(/\s+/g, ' ').trim();
           t.expect(text === 'Potions: 6', `The .loot paragraph reads "${text}" — expected "Potions: 6".`);
-          t.sourceIncludes(/\{\s*potions\s*\*\s*2\s*\}|\{\s*2\s*\*\s*potions\s*\}|\{\s*potions\s*\+\s*potions\s*\}/, 'Compute the doubled amount inside braces, e.g. {potions * 2}.');
+          t.sourceIncludes(/potions\s*\*\s*2|2\s*\*\s*potions|potions\s*\+\s*potions/, 'Compute the doubled amount from potions, e.g. {potions * 2}, instead of typing 6.');
         }),
         test('The battle cry calls shout(): "FOR REACTORIA!"', (t) => {
           t.render();
@@ -334,7 +342,7 @@ export default {
       lesson: md`
         ## The three rules of JSX
 
-        JSX looks like HTML, but it is stricter. Break these rules and your code won't compile.
+        JSX looks like HTML, but it is stricter. Break rule 1 or 2 and your code won't compile. Break rule 3 and React prints a warning in the console, and the attribute may be silently ignored (a lowercase \`onclick\` never fires).
 
         ### 1. Return a single root element
 
@@ -400,7 +408,7 @@ export default {
       task: md`
         ## 🐛 Untangle the net
 
-        The code on the right is broken in **four** places. Fix them so the preview runs:
+        The code on the right is broken in **four** places. Fixes 1–3 get the preview running again; fix 4 makes it correct JSX:
 
         1. The component returns **two root elements** — wrap them in a Fragment \`<>...</>\`.
         2. The \`<img>\` tag is never closed.
@@ -608,6 +616,7 @@ export default {
         }),
         test('Background is purple and text is gold', (t) => {
           t.render();
+          t.sourceExcludes(/['"][a-z]+(-[a-z]+)+['"]\s*:/, 'Style keys are camelCase: backgroundColor and borderRadius, not "background-color".');
           const el = t.find('div.potion');
           t.expect(el.style.backgroundColor === 'purple', `backgroundColor is "${el.style.backgroundColor || 'not set'}" — expected 'purple'. Remember camelCase: backgroundColor.`);
           t.expect(el.style.color === 'gold', `color is "${el.style.color || 'not set'}" — expected 'gold'.`);
@@ -631,7 +640,7 @@ export default {
           id: 'style-object',
           icon: '🎨',
           title: 'Inline style objects',
-          summary: 'style={{ camelCase: value }} — numbers mean px.',
+          summary: 'style={{ camelCase: value }} — numbers mean px for sizes.',
           snippet: code`
             <div style={{ backgroundColor: 'purple', padding: 16 }} />
           `,
@@ -653,7 +662,7 @@ export default {
       id: 'jsx-trial',
       type: 'quiz',
       title: 'Trial of the Tides',
-      blurb: 'Six questions guard the path. Prove you speak fluent JSX.',
+      blurb: 'Seven questions guard the path. Prove you speak fluent JSX.',
       xp: 100,
       story: [{ text: 'The tide-keeper only lets JSX experts pass. Answer her questions — every answer comes with an explanation, so wrong ones still teach you something.', mood: 'happy' }],
       task: md`Answer each question. A perfect run earns **3 stars**.`,
@@ -694,14 +703,14 @@ export default {
         ),
         q(
           'How do you write an inline style that sets the font size to 20px?',
-          ['`style="font-size: 20px"`', '`style={fontSize: 20}`', '`style={{ fontSize: 20 }}`', '`style={{ font-size: "20px" }}`'],
-          2,
-          'The style prop takes an object: the outer braces enter JavaScript, the inner braces are the object. Properties are camelCase and numbers mean pixels.',
+          ['`style="font-size: 20px"`', '`style={fontSize: 20}`', '`style={{ font-size: "20px" }}`', '`style={{ fontSize: 20 }}`'],
+          3,
+          'The style prop takes an object: the outer braces enter JavaScript, the inner braces are the object. Properties are camelCase, and a number means pixels for size properties like fontSize.',
         ),
         q(
           'Which of these can NOT go inside `{ }` in JSX?',
-          ['`user.name`', '`price * 2`', '`if (open) { ... }`', '`formatDate(today)`'],
-          2,
+          ['`user.name`', '`price * 2`', '`formatDate(today)`', '`if (open) { ... }`'],
+          3,
           'Braces take **expressions** — things that produce a value. An `if` statement does not produce a value. (You will meet the React ways of handling conditions in the Branching Woods.)',
         ),
         q(
@@ -844,6 +853,8 @@ export default {
           t.expect(t.find('article h2').textContent.trim() === 'The Pure Function', 'The <h2> should show the ship name.');
           t.expect(t.find('.crew').textContent.replace(/\s+/g, ' ').trim() === 'Crew: 12', 'The .crew paragraph should read "Crew: 12".');
           t.expect(t.find('.cargo').textContent.replace(/\s+/g, ' ').trim() === 'Cargo: 48 crates', 'The .cargo paragraph should read "Cargo: 48 crates".');
+          t.sourceIncludes(/<h2[^>]*>[^<]*\{[^}]*ship\.name/, 'Show the name with {ship.name} inside the <h2>.');
+          t.expect((t.source.match(/ship\.crew\b/g) || []).length >= 2, 'Show the crew with {ship.crew}, and use it again for the cargo.');
           t.sourceIncludes(/ship\.crew\s*\*\s*ship\.cratesPerCrew|ship\.cratesPerCrew\s*\*\s*ship\.crew/, 'Compute the cargo from ship.crew and ship.cratesPerCrew.');
         }),
         test('A divider and the motto in uppercase', (t) => {
@@ -851,7 +862,7 @@ export default {
           t.expectElement('article hr', 'Add a self-closing <hr /> inside the article.');
           const motto = t.find('.motto').textContent.trim();
           t.expect(motto === 'SAME INPUT, SAME OUTPUT', `The motto reads "${motto}" — expected "SAME INPUT, SAME OUTPUT".`);
-          t.sourceIncludes(/toUpperCase\(\)/, 'Turn the motto uppercase with .toUpperCase().');
+          t.sourceIncludes(/ship\.motto\s*\.\s*toUpperCase\(\)/, 'Turn the motto uppercase with {ship.motto.toUpperCase()}.');
         }),
       ],
       concepts: [

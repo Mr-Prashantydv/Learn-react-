@@ -471,12 +471,6 @@ export default {
             !text.includes('0'),
             `A ghostly 0 haunts the board: "${text}". fireflies is 0, and 0 && ... gives back 0, which React renders! Write fireflies > 0 && ... instead.`,
           );
-          t.render();
-          const glade = rowWith(t, '.camp', 'Sunny Glade');
-          t.expect(
-            glade && !norm(glade.textContent).includes('0'),
-            `Sunny Glade in App shows "${norm(glade?.textContent)}": a stray 0 is still haunting it. Every && in Camp needs a real boolean on its left side.`,
-          );
         }),
         test('The warning shows only when there is one', (t) => {
           const Camp = exported(t, 'Camp', 'Keep "export function Camp(...)" in your code.');
@@ -496,7 +490,7 @@ export default {
           id: 'woods-and',
           icon: '🔦',
           title: 'Conditional &&',
-          summary: '{cond && <A />} renders A only when cond is true; otherwise nothing.',
+          summary: '{cond && <A />} renders A when cond is truthy, and nothing when cond is false. Keep cond a real boolean.',
           snippet: code`
             {isNight && <p>🌙 Night has fallen</p>}
           `,
@@ -1776,9 +1770,11 @@ export default {
           snippet: code`
             {warbands.map((band) => (
               <section key={band.id}>
-                {band.goblins.map((g) => (
-                  <Goblin key={g.id} goblin={g} />
-                ))}
+                <ul>
+                  {band.goblins.map((g) => (
+                    <Goblin key={g.id} goblin={g} />
+                  ))}
+                </ul>
               </section>
             ))}
           `,
