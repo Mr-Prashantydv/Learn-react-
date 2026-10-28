@@ -1,13 +1,13 @@
 export const RANKS = [
   { xp: 0, title: 'Wanderer', icon: '🌱' },
-  { xp: 300, title: 'Apprentice', icon: '🔰' },
-  { xp: 800, title: 'Component Smith', icon: '🔨' },
-  { xp: 1500, title: 'State Shaper', icon: '🧪' },
-  { xp: 2500, title: 'Effect Whisperer', icon: '🌀' },
-  { xp: 3800, title: 'Hook Sage', icon: '🪝' },
-  { xp: 5200, title: 'Pattern Knight', icon: '🛡️' },
-  { xp: 7000, title: 'Render Mage', icon: '🔮' },
-  { xp: 9000, title: 'Grandmaster of Reactoria', icon: '👑' },
+  { xp: 500, title: 'Apprentice', icon: '🔰' },
+  { xp: 1500, title: 'Component Smith', icon: '🔨' },
+  { xp: 3000, title: 'State Shaper', icon: '🧪' },
+  { xp: 5000, title: 'Effect Whisperer', icon: '🌀' },
+  { xp: 7500, title: 'Hook Sage', icon: '🪝' },
+  { xp: 10000, title: 'Pattern Knight', icon: '🛡️' },
+  { xp: 13000, title: 'Render Mage', icon: '🔮' },
+  { xp: 16000, title: 'Grandmaster of Reactoria', icon: '👑' },
 ];
 
 export function rankFor(xp) {

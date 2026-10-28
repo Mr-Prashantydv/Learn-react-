@@ -33,8 +33,9 @@ export function Certificate({ go }) {
           <p className="certificate-title">as a {rank.title}</p>
           <p className="certificate-body">
             for restoring declarative order to all {chapters.length} regions of Reactoria — mastering JSX, components,
-            props, state, events, effects, refs, context, reducers, custom hooks, performance and the arcane arts of
-            modern React.
+            props, state, events, effects, refs, context, reducers, custom hooks, composition patterns, performance,
+            escape hatches, routing and data caching, Server Components, TypeScript, accessibility, testing and the
+            arcane arts of modern React.
           </p>
           <div className="certificate-stats">
             <div>

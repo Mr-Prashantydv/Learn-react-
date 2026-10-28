@@ -266,6 +266,27 @@ export function createTestContext({ level, source, sandbox, evaluated, act, Reac
       return el;
     },
 
+    /** Awaited click — use when the click makes something suspend (use(), lazy). */
+    async clickAsync(target) {
+      const el = resolve(target);
+      await runAsync(async () => {
+        el.click();
+      });
+      return el;
+    },
+
+    /** Awaited submit — use when submitting makes something suspend. */
+    async submitAsync(target) {
+      const el = resolve(target);
+      const form = el.tagName === 'FORM' ? el : el.closest('form');
+      if (!form) throw new Error('Expected a <form> element to submit.');
+      await runAsync(async () => {
+        if (typeof form.requestSubmit === 'function') form.requestSubmit();
+        else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      });
+      return form;
+    },
+
     /** Advance fake time by `ms` and let promises settle. */
     async tick(ms = 0) {
       await runAsync(async () => {

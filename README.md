@@ -8,9 +8,13 @@ so nothing re-renders anymore and the world is frozen. You are the new
 By the time the credits roll you will have written (not just read about):
 JSX, components & props, conditional rendering & lists, events & `useState`,
 immutable updates, forms, `useEffect` & data fetching, refs, `useReducer` &
-context, custom hooks, memoisation & transitions, error boundaries, portals,
-Suspense, `use`, Actions, `useActionState`, `useOptimistic` … and a full
-capstone app that combines all of it.
+context, custom hooks, composition patterns (compound components, render
+props, controlled/uncontrolled), memoisation & transitions,
+`useSyncExternalStore`, `useEffectEvent`, `useLayoutEffect`, `<Activity>`,
+error boundaries, portals, Suspense, `use`, Actions, `useActionState`,
+`useOptimistic`, routing, server-state caching, Server Components &
+hydration, TypeScript, accessibility, writing tests … and a full capstone app
+that combines all of it.
 
 ## Play it
 
@@ -32,7 +36,7 @@ npm run preview   # serves dist/ locally
 
 ## How the game works
 
-- 🗺️ **13 regions, ~80 quests.** Each region on the world map is a chapter;
+- 🗺️ **17 regions, 117 quests.** Each region on the world map is a chapter;
   each glowing node is a quest. Regions unlock in order; a **boss** guards the
   end of each one.
 - 🎯 **Code quests** — a lesson (📖), a precise task (🎯), an editor with a live

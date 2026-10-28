@@ -167,6 +167,7 @@ time/promise helpers are async.
 - `t.change(elOrSelector, value)` — `<select>` value, or checkbox/radio checked state (`true/false`)
 - `t.submit(formOrChild)` — submits the form (fires `onSubmit` / form `action`)
 - `t.keyDown(el, 'Enter')`, `t.fire(el, 'eventName')`, `t.focus(el)`, `t.blur(el)`
+- `await t.clickAsync(el)`, `await t.submitAsync(form)` — awaited versions for interactions that make a component **suspend** (navigating to a page that calls `use()`, showing a `lazy` component); the sync versions leave React unable to retry the suspended render.
 
 ### Time, promises, fetch (async)
 - Player code's `setTimeout`/`setInterval`/`Date`/`performance.now` are **fake** in checks.
