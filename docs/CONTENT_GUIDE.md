@@ -150,7 +150,7 @@ time/promise helpers are async.
 - `t.renderComponent(Comp, props)` — render a named export, e.g. `t.renderComponent(t.exports.HeroCard, { name: 'Ada' })`
 - `t.unmount()`
 - `t.exports` — the module's exports (test named exports such as custom hooks: build a tiny component with `t.h` / `t.React`)
-- `t.React`, `t.h` (= `React.createElement`)
+- `t.React`, `t.h` (= `React.createElement`). Note: `createElement` still applies legacy `defaultProps` to function components, but the JSX runtime used by player code does not — to test that a component does NOT rely on `defaultProps`, render via `t.h` won't catch it; import `jsx` from `react/jsx-runtime` in the check instead.
 
 ### Querying (all scoped to the rendered container)
 - `t.$(sel)`, `t.$$(sel)` → element / array (may be empty)
