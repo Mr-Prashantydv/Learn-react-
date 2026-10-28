@@ -11,6 +11,7 @@ import { Dialog } from '../components/Companion.jsx';
 import { VictoryModal } from '../components/Victory.jsx';
 import { play } from '../game/sound.js';
 import { PREVIEW_BASE_CSS } from '../engine/previewStyles.js';
+import { guardNavigation } from '../engine/navigationGuard.js';
 
 const originalTitle = typeof document !== 'undefined' ? document.title : 'Reactoria';
 
@@ -121,7 +122,27 @@ export function Level({ level, go, playground = false }) {
         // The preview lives in a Shadow DOM so the player's CSS (and the
         // level's) can't leak into the game, and the game's can't leak in.
         const host = previewRef.current;
-        const shadow = host.shadowRoot || host.attachShadow({ mode: 'open' });
+        let shadow = host.shadowRoot;
+        if (!shadow) {
+          shadow = host.attachShadow({ mode: 'open' });
+          // A real page would reload on an un-prevented form submit (or follow
+          // a link away). Keep the game alive, but tell the player.
+          guardNavigation(shadow, {
+            mode: 'block',
+            onBlocked: (info) =>
+              setLogs((prev) => [
+                ...prev.slice(-199),
+                {
+                  kind: 'warn',
+                  time: Date.now(),
+                  text:
+                    info.kind === 'form'
+                      ? '⚠ A <form> was submitted without e.preventDefault(). In a real app the browser would reload the page and all your state would be lost. (Reactoria caught it this time!)'
+                      : `⚠ A link to "${info.href}" tried to navigate away. The preview blocked it.`,
+                },
+              ]),
+          });
+        }
         shadow.innerHTML = '';
         const style = document.createElement('style');
         style.textContent = PREVIEW_BASE_CSS + (level.css || '');

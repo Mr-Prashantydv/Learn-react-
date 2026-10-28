@@ -12,7 +12,83 @@ export function Markdown({ text }) {
   return <div className="md">{blocks.map((b, i) => renderBlock(b, i))}</div>;
 }
 
-function parseBlocks(text) {
+const BULLET = /^\s*[-*]\s+/;
+const ORDERED = /^\s*\d+[.)]\s+/;
+const indentOf = (line) => line.match(/^[ \t]*/)[0].length;
+const startsBlock = (line) =>
+  line.startsWith('```') || line.startsWith(':::') || /^(#{1,4})\s/.test(line) || line.startsWith('>') || line.startsWith('|');
+
+/**
+ * Parses a (possibly nested) list starting at `start`. Supports items that
+ * wrap onto indented continuation lines (or "lazy" unindented ones), nested
+ * lists, code blocks inside items, blank lines between items, and ordered
+ * lists that start at a number other than 1.
+ */
+function parseList(lines, start) {
+  const ordered = ORDERED.test(lines[start]);
+  const marker = ordered ? ORDERED : BULLET;
+  const base = indentOf(lines[start]);
+  const first = ordered ? parseInt(lines[start].trim(), 10) : 1;
+  const items = [];
+  let i = start;
+  let current = null;
+  let col = 2; // content column of the current item, relative to `base`
+  let inFence = false;
+  const strip = (line) => line.slice(Math.min(indentOf(line), base + col));
+
+  while (i < lines.length) {
+    const line = lines[i];
+    if (inFence) {
+      current.push(strip(line));
+      if (line.trim().startsWith('```')) inFence = false;
+      i++;
+      continue;
+    }
+    if (!line.trim()) {
+      // A blank line ends the list unless more of it follows.
+      let j = i + 1;
+      while (j < lines.length && !lines[j].trim()) j++;
+      if (j < lines.length && ((indentOf(lines[j]) === base && marker.test(lines[j])) || indentOf(lines[j]) > base)) {
+        if (current) current.push('');
+        i = j;
+        continue;
+      }
+      break;
+    }
+    const indent = indentOf(line);
+    if (indent === base && marker.test(line)) {
+      const m = line.match(marker)[0];
+      col = m.length - base;
+      current = [line.slice(m.length)];
+      items.push(current);
+      i++;
+      continue;
+    }
+    if (indent > base && current) {
+      // Continuation or nested content, relative to the item's content column.
+      current.push(strip(line));
+      if (line.trim().startsWith('```')) inFence = true;
+      i++;
+      continue;
+    }
+    if (indent <= base && current && !BULLET.test(line) && !ORDERED.test(line) && !startsBlock(line.trim())) {
+      // Lazy continuation of the item's paragraph.
+      current.push(line.trim());
+      i++;
+      continue;
+    }
+    break;
+  }
+
+  const parsed = items.map((itemLines) => {
+    const [head, ...rest] = itemLines;
+    const blocks = parseBlocks([head, ...rest].join('\n'));
+    return blocks;
+  });
+  return { block: { type: 'list', ordered, start: first, items: parsed }, next: i };
+}
+
+export function parseBlocks(text) {
   const lines = text.replace(/\r/g, '').split('\n');
   const blocks = [];
   let i = 0;
@@ -46,16 +122,10 @@ function parseBlocks(text) {
       i++;
       continue;
     }
-    if (/^\s*[-*]\s+/.test(line)) {
-      const items = [];
-      while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*[-*]\s+/, ''));
-      blocks.push({ type: 'list', ordered: false, items });
-      continue;
-    }
-    if (/^\s*\d+[.)]\s+/.test(line)) {
-      const items = [];
-      while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*\d+[.)]\s+/, ''));
-      blocks.push({ type: 'list', ordered: true, items });
+    if (BULLET.test(line) || ORDERED.test(line)) {
+      const { block, next } = parseList(lines, i);
+      blocks.push(block);
+      i = next;
       continue;
     }
     if (line.startsWith('>')) {
@@ -85,8 +155,8 @@ function parseBlocks(text) {
       !lines[i].startsWith('```') &&
       !lines[i].startsWith(':::') &&
       !/^(#{1,4})\s/.test(lines[i]) &&
-      !/^\s*[-*]\s+/.test(lines[i]) &&
-      !/^\s*\d+[.)]\s+/.test(lines[i]) &&
+      !BULLET.test(lines[i]) &&
+      !ORDERED.test(lines[i]) &&
       !lines[i].startsWith('>') &&
       !lines[i].startsWith('|')
     )
@@ -109,9 +179,13 @@ function renderBlock(block, key) {
     case 'list': {
       const Tag = block.ordered ? 'ol' : 'ul';
       return (
-        <Tag key={key}>
-          {block.items.map((item, i) => (
-            <li key={i}>{renderInline(item)}</li>
+        <Tag key={key} start={block.ordered && block.start !== 1 ? block.start : undefined}>
+          {block.items.map((itemBlocks, i) => (
+            <li key={i}>
+              {itemBlocks.length === 1 && itemBlocks[0].type === 'p'
+                ? renderInline(itemBlocks[0].text)
+                : itemBlocks.map((b, j) => (j === 0 && b.type === 'p' ? <span key={j}>{renderInline(b.text)}</span> : renderBlock(b, j)))}
+            </li>
           ))}
         </Tag>
       );

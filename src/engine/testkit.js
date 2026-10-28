@@ -1,3 +1,5 @@
+import { guardNavigation } from './navigationGuard.js';
+
 /**
  * The context object handed to every quest check (`test.run(ctx)`).
  * Interactions are synchronous (React's `act` flushes updates + effects);
@@ -6,7 +8,10 @@
 export function createTestContext({ level, source, sandbox, evaluated, act, React, createRoot, warnings = [] }) {
   const { App, exports } = evaluated;
   let container = null;
+  let wrapper = null;
+  let unguard = null;
   let root = null;
+  const blockedNavigations = [];
 
   // Wraps React's act() so that crashes in the player's component surface as
   // a friendly message instead of a raw stack trace.
@@ -27,10 +32,16 @@ export function createTestContext({ level, source, sandbox, evaluated, act, Reac
 
   const ensureContainer = () => {
     if (!container) {
+      // wrapper > container: the wrapper's listeners run after React's (which
+      // live on the container), so un-prevented form submits / link clicks can
+      // be kept from navigating the page without hiding them from checks.
+      wrapper = document.createElement('div');
+      wrapper.setAttribute('data-reactoria-test', '');
+      wrapper.style.cssText = 'position:fixed;left:-99999px;top:0;width:800px;';
       container = document.createElement('div');
-      container.setAttribute('data-reactoria-test', '');
-      container.style.cssText = 'position:fixed;left:-99999px;top:0;width:800px;';
-      document.body.appendChild(container);
+      wrapper.appendChild(container);
+      document.body.appendChild(wrapper);
+      unguard = guardNavigation(wrapper, { mode: 'sink', onBlocked: (info) => blockedNavigations.push(info) });
       root = createRoot(container);
     }
     return container;
@@ -63,6 +74,8 @@ export function createTestContext({ level, source, sandbox, evaluated, act, Reac
     /** React's own warnings (missing keys, etc.) captured during this check */
     warnings,
     storage: sandbox.localStorage,
+    /** forms submitted / links followed WITHOUT preventDefault() during this check */
+    blockedNavigations,
     act,
 
     get container() {
@@ -120,7 +133,10 @@ export function createTestContext({ level, source, sandbox, evaluated, act, Reac
           root.unmount();
         });
         root = null;
-        if (container) container.remove();
+        unguard?.();
+        unguard = null;
+        if (wrapper) wrapper.remove();
+        wrapper = null;
         container = null;
       }
     },

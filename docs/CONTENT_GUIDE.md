@@ -65,6 +65,8 @@ Common fields:
 | `story` | 1–3 Pip lines shown when the quest opens |
 | `concepts` | 1–3 codex entries unlocked on completion (see below) |
 | `boss`, `badge` | only on the boss level: `boss: true, badge: { id: 'badge-forge', name, icon, description }` |
+| `bossName`, `bossIcon` | boss level only, optional: name + emoji shown on the boss HP bar (defaults: the title without "Boss: ", and 👾) |
+| `final` | only on the very last level of the game (marks the adventure as finished) |
 
 ### Code levels (`code` / `bug` / `build`)
 
@@ -119,7 +121,9 @@ Inside them you must escape:
 - `${` as `\${` (template literals inside code samples)
 
 Markdown supported: `##`/`###` headings, paragraphs, `**bold**`, `*italic*`,
-inline code, fenced code blocks, `-` / `1.` lists, tables, `>` quotes and
+inline code, fenced code blocks, `-` / `1.` lists (items may wrap onto
+indented continuation lines; nested lists and code blocks inside items work;
+numbering continues from the first item's number), tables, `>` quotes and
 callouts:
 
 ```
@@ -179,6 +183,14 @@ time/promise helpers are async.
   Responses have `ok`, `status`, `json()`, `text()`. Unknown routes return 404.
   `t.fetchCalls` lists `{ url, options }` of every call.
 - Player code's `localStorage` is an in-memory fake; `t.storage` is the same object.
+
+### Forms & links
+- A form submitted (or a link followed) **without** `preventDefault()` never navigates the game:
+  during checks it is redirected into a hidden iframe and recorded in `t.blockedNavigations`
+  (`[{ kind: 'form' | 'link', element, href }]`) — so a check like
+  `t.expect(t.blockedNavigations.length === 0, 'Call e.preventDefault() ...')` works, and
+  `event.defaultPrevented` on events you dispatch yourself is left untouched.
+  In the live preview the navigation is blocked and the player sees a console warning.
 
 ### Assertions
 - `t.expect(cond, message)`, `t.fail(message)`
