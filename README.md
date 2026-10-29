@@ -34,6 +34,19 @@ npm run build
 npm run preview   # serves dist/ locally
 ```
 
+## Deploy to GitHub Pages
+
+Every push to `main` runs `.github/workflows/deploy.yml`: it installs
+dependencies, verifies every quest, builds the game and publishes `dist/` to
+GitHub Pages. One-time setup: in the repository go to **Settings → Pages** and
+set **Source** to **GitHub Actions**. The game then lives at
+`https://<user>.github.io/<repo>/`.
+
+To use your own domain, add it under **Settings → Pages → Custom domain** and
+create a `CNAME` DNS record pointing to `<user>.github.io` (or `A` records to
+GitHub's Pages IPs for an apex domain). Tick **Enforce HTTPS** once the
+certificate is issued.
+
 ## How the game works
 
 - 🗺️ **17 regions, 117 quests.** Each region on the world map is a chapter;
